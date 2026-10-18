@@ -1,0 +1,154 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
+
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  font-family: "Montserrat", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  /* ===== Theme ===== */
+  --background: #f8f6f0;
+  --surface: #ffffff;
+  --surface-soft: #f5f3ed;
+
+  --primary: #6f5aa8;
+  --primary-hover: #5e4b91;
+  --primary-soft: #eee9f8;
+  --primary-text: #ffffff;
+
+  --text: #24332d;
+  --text-muted: #52645c;
+  --text-soft: #7b8580;
+
+  --success: #356b52;
+  --success-soft: #e4eee8;
+
+  --danger: #a6535c;
+  --danger-soft: #f8dfe2;
+
+  --warning: #8a752e;
+  --warning-soft: #f6e9b8;
+
+  --pink: #f8dfe2;
+  --yellow: #f6e9b8;
+
+  --border: #ebe8df;
+  --border-strong: #d9d5ca;
+
+  /* ===== Button ===== */
+  --button-primary: #6f5aa8;
+  --button-primary-hover: #5e4b91;
+  --button-primary-text: #ffffff;
+
+  --button-secondary: #ffffff;
+  --button-secondary-hover: #f5f3ed;
+  --button-secondary-text: #24332d;
+
+  /* ===== Icon / Avatar ===== */
+  --icon-background: #f5f3ed;
+  --icon-color: #6f5aa8;
+  --avatar-background: #eee9f8;
+  --avatar-text: #6f5aa8;
+
+  /* ===== Stat Cards ===== */
+  --stat-default: #ffffff;
+  --stat-green: #eee9f8;
+  --stat-yellow: #f6e9b8;
+  --stat-pink: #f8dfe2;
+
+  /* ===== Shadow ===== */
+  --shadow: rgba(36, 51, 45, 0.08);
+}
+
+html.dark {
+  /* ===== Theme ===== */
+  --background: #111214;
+  --surface: #1b1d21;
+  --surface-soft: #202226;
+
+  --primary: #c8b8ff;
+  --primary-hover: #b5a3f5;
+  --primary-soft: #292633;
+  --primary-text: #111214;
+
+  --text: #f4f1ea;
+  --text-muted: #a9a7a3;
+  --text-soft: #85878b;
+
+  --success: #9fd5b7;
+  --success-soft: #26332c;
+
+  --danger: #e5a1ac;
+  --danger-soft: #30262b;
+
+  --warning: #e2cb82;
+  --warning-soft: #332f24;
+
+  --pink: #30262b;
+  --yellow: #332f24;
+
+  --border: #292c31;
+  --border-strong: #393c42;
+
+  /* ===== Button ===== */
+  --button-primary: #c8b8ff;
+  --button-primary-hover: #b5a3f5;
+  --button-primary-text: #111214;
+
+  --button-secondary: #1b1d21;
+  --button-secondary-hover: #24272c;
+  --button-secondary-text: #f4f1ea;
+
+  /* ===== Icon / Avatar ===== */
+  --icon-background: #25272c;
+  --icon-color: #c8b8ff;
+  --avatar-background: #292633;
+  --avatar-text: #c8b8ff;
+
+  /* ===== Stat Cards ===== */
+  --stat-default: #1b1d21;
+  --stat-green: #292633;
+  --stat-yellow: #332f24;
+  --stat-pink: #30262b;
+
+
+
+  /* ===== Shadow ===== */
+  --shadow: rgba(0, 0, 0, 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--text);
+  font-family: "Montserrat", sans-serif;
+}
+
+#root {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--text);
+}
+
+button {
+  font-family: "Montserrat", sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
