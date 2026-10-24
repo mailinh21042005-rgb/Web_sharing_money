@@ -1,8 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+app.use(cors());
 const { connectDB } = require('./db');
 const app = express();
+const jwt = require('jsonwebtoken');
 
 app.use(cors());
 app.use(express.json());
@@ -58,6 +60,50 @@ app.post('/api/register', async (req, res) => {
         if (error.message.includes('conflicted with the CHECK constraint')) {
             return res.status(400).json({ error: "Số điện thoại không hợp lệ (phải gồm 10 chữ số)!" });
         }
+        res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
+    }
+});
+
+// Đăng nhập
+app.post('/api/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+
+        if (!username || !password) {
+            return res.status(400).json({ error: "Vui lòng nhập Username và Mật khẩu!" });
+        }
+
+        const request = new sql.Request();
+        request.input('username', sql.VarChar(50), username);
+        const result = await request.query(`SELECT * FROM Users WHERE username = @username`);
+
+        if (result.recordset.length === 0) {
+            return res.status(401).json({ error: "Tài khoản không tồn tại!" });
+        }
+
+        const user = result.recordset[0];
+
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ error: "Mật khẩu không chính xác!" });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, role_id: user.role_id }, 
+            process.env.JWT_SECRET || 'sharemoney_secret_key', 
+            { expiresIn: '1h' }
+        );
+
+        res.status(200).json({ 
+            message: "Đăng nhập thành công!",
+            token: token,
+            user: {
+                ten: user.ten,
+                username: user.username
+            }
+        });
+
+    } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
     }
 });

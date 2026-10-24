@@ -1,8 +1,28 @@
 import ThemeToggle from "./ThemeToggle";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function Navbar() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [user, setUser] = useState(() => {
+    const userStr = localStorage.getItem("user");
+    return userStr ? JSON.parse(userStr) : null;
+  });
+  const navigate = useNavigate();
+
+  const userName = user?.ten || "";
+  const isLoggedIn = Boolean(user);
+
+  // Đăng xuất
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setUser(null);
+    navigate("/login");
+  };
+
+  // Avatar mặc định
+  const avatarLetter = userName ? userName.charAt(0).toUpperCase() : "U";
+
   return (
     <nav className="flex items-center justify-between px-6 py-5 lg:px-10">
       {/* Logo */}
@@ -47,18 +67,32 @@ function Navbar() {
         {isLoggedIn ? (
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)]">
-              L
+              {avatarLetter}
             </div>
             <span className="hidden text-sm font-medium text-[var(--text)] sm:block">
-              Linh
+              {userName}
             </span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="whitespace-nowrap rounded-lg bg-red-50 px-4 py-2 text-sm text-red-600 shadow-md transition hover:bg-red-100"
+            >
+              Đăng xuất
+            </button>
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <button className="text-sm font-medium text-[var(--text)] transition hover:opacity-80">
+            <button
+              type="button"
+              className="text-sm font-medium text-[var(--text)] transition hover:opacity-80"
+            >
               Đăng ký
             </button>
-            <button className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-text)] transition hover:opacity-80">
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-text)] transition hover:opacity-80"
+            >
               Đăng nhập
             </button>
           </div>

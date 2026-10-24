@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import GroupCard from "../components/GroupCard";
 import DebtCard from "../components/DebtCard";
 import ActivityItem from "../components/ActivityItem";
 import StatCard from "../components/StatCard";
 
 function Dashboard() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
-  const [userName, setUserName] = useState("Linh");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("");
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setIsLoggedIn(true);
+      setUserName(user.ten);
+    }
+  }, []);
+
   return (
     <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
       {/* Welcome */}
