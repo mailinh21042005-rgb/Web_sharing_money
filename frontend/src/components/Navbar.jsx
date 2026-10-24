@@ -1,6 +1,6 @@
 import ThemeToggle from "./ThemeToggle";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 
 function Navbar() {
   const [user, setUser] = useState(() => {
@@ -26,15 +26,17 @@ function Navbar() {
   return (
     <nav className="flex items-center justify-between px-6 py-5 lg:px-10">
       {/* Logo */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)] text-lg text-[var(--primary-text)]">
-          ✦
-        </div>
+      <Link to="/" className="flex items-center gap-3 transition hover:opacity-80">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)] text-lg text-[var(--primary-text)]">
+            ✦
+          </div>
 
-        <span className="text-xl font-semibold tracking-tight text-[var(--primary)]">
-          Share Money
-        </span>
-      </div>
+          <span className="text-xl font-semibold tracking-tight text-[var(--primary)]">
+            Share Money
+          </span>
+        </div>
+      </Link>
 
       {/* Navigation */}
       <div className="hidden items-center gap-8 md:flex">
@@ -84,6 +86,7 @@ function Navbar() {
           <div className="flex items-center gap-3">
             <button
               type="button"
+              onClick={() => navigate("/register")}
               className="text-sm font-medium text-[var(--text)] transition hover:opacity-80"
             >
               Đăng ký

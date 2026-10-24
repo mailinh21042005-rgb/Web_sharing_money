@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import GroupCard from "../components/GroupCard";
 import DebtCard from "../components/DebtCard";
 import ActivityItem from "../components/ActivityItem";
