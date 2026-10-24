@@ -1,9 +1,12 @@
+import { useState } from "react";
 import GroupCard from "../components/GroupCard";
 import DebtCard from "../components/DebtCard";
 import ActivityItem from "../components/ActivityItem";
 import StatCard from "../components/StatCard";
 
 function Dashboard() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [userName, setUserName] = useState("Linh");
   return (
     <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
       {/* Welcome */}
@@ -15,11 +18,14 @@ function Dashboard() {
             </p>
 
             <h1 className="max-w-2xl text-3xl font-semibold leading-tight tracking-tight text-[var(--text)] md:text-4xl">
-              Chào Linh, hôm nay chia tiền thật nhẹ nhàng nhé ✨
+              {isLoggedIn
+                ? `Chào ${userName}, hôm nay chia tiền thật nhẹ nhàng nhé ✨`
+                : "Hãy đăng nhập để mở khóa toàn bộ tính năng nha ✨"}
             </h1>
-
             <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--text-muted)]">
-              Theo dõi các khoản chi tiêu và công nợ của bạn một cách đơn giản.
+              {isLoggedIn
+                ? "Theo dõi các khoản chi tiêu và công nợ bạn một cách đơn giản."
+                : "Đăng nhập ngay để quản lý nhóm và các khoản chia tiền dễ dàng."}
             </p>
           </div>
 

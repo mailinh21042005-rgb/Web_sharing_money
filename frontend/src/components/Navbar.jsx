@@ -1,6 +1,8 @@
 import ThemeToggle from "./ThemeToggle";
+import { useState } from "react";
 
 function Navbar() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
   return (
     <nav className="flex items-center justify-between px-6 py-5 lg:px-10">
       {/* Logo */}
@@ -42,13 +44,25 @@ function Navbar() {
       <div className="flex items-center gap-3">
         <ThemeToggle />
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)]">
-          L
-        </div>
-
-        <span className="hidden text-sm font-medium text-[var(--text)] sm:block">
-          Linh
-        </span>
+        {isLoggedIn ? (
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)]">
+              L
+            </div>
+            <span className="hidden text-sm font-medium text-[var(--text)] sm:block">
+              Linh
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <button className="text-sm font-medium text-[var(--text)] transition hover:opacity-80">
+              Đăng ký
+            </button>
+            <button className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-text)] transition hover:opacity-80">
+              Đăng nhập
+            </button>
+          </div>
+        )}
       </div>
     </nav>
   );
