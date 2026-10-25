@@ -1,9 +1,9 @@
 require('dotenv').config();
 const express = require('express');
+const app = express();
 const cors = require('cors');
 app.use(cors());
 const { connectDB } = require('./db');
-const app = express();
 const jwt = require('jsonwebtoken');
 
 app.use(cors());
@@ -28,10 +28,11 @@ app.post('/api/register', async (req, res) => {
     try {
         const { hodem, tenlot, ten, username, email, dienthoai, password } = req.body;
 
-        if (!hodem || !tenlot || !ten || !username || !email || !dienthoai || !password) {
+        if (!hodem || !tenlot || !ten || !username || typeof email !== 'string' || !email.trim() || !dienthoai || !password) {
             return res.status(400).json({ error: "Vui lòng điền đầy đủ thông tin!" });
         }
 
+        const normalizedEmail = email.trim().toLowerCase();
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
 
@@ -41,7 +42,7 @@ app.post('/api/register', async (req, res) => {
         request.input('tenlot', sql.NVarChar(20), tenlot);
         request.input('ten', sql.NVarChar(10), ten);
         request.input('username', sql.VarChar(50), username);
-        request.input('email', sql.VarChar(50), email);
+        request.input('email', sql.VarChar(50), normalizedEmail);
         request.input('dienthoai', sql.Char(10), dienthoai);
         request.input('password_hash', sql.VarChar(sql.MAX), password_hash);
 
@@ -61,6 +62,31 @@ app.post('/api/register', async (req, res) => {
             return res.status(400).json({ error: "Số điện thoại không hợp lệ (phải gồm 10 chữ số)!" });
         }
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
+    }
+});
+
+// Kiểm tra trùng tài khoản
+app.post ('/api/check-exists', async (req, res) => {
+    const { username, dienthoai } = req.body;
+    try {
+        if (!username || !dienthoai) {
+            return res.status(400).json({ error: "Vui lòng nhập tên đăng nhập và số điện thoại." });
+        }
+
+        const checkDuplicate = await new sql.Request()
+            .input('username',sql.VarChar, username)
+            .input('dienthoai',sql.Char, dienthoai)
+            .query(`
+                SELECT id FROM Users
+                WHERE username = @username OR dienthoai = @dienthoai
+            `);
+        if (checkDuplicate.recordset.length > 0) {
+            return res.status(400).json({ error: "Tên đăng nhập hoặc số điện thoại đã được sử dụng!" });
+        }
+        res.status(200).json({ message: "OK" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Lỗi máy chủ cơ sở dữ liệu." });
     }
 });
 
@@ -106,4 +132,35 @@ app.post('/api/login', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
     }
+});
+
+// Kiểm tra số điện thoại trong database
+app.post('/api/check-phone', async (req, res) => {
+  const { dienthoai } = req.body;
+  try {
+    const checkUser = await pool.request()
+      .input('dienthoai', sql.Char, dienthoai)
+      .query(`SELECT id FROM Users WHERE dienthoai = @dienthoai`);
+
+    if (checkUser.recordset.length === 0) {
+      return res.status(404).json({ error: "Số điện thoại này chưa được đăng ký!" });
+    }
+    res.status(200).json({ message: "OK" });
+  } catch (err) {
+    res.status(500).json({ error: "Lỗi máy chủ cơ sở dữ liệu." });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  const { dienthoai, newPassword } = req.body;
+  try {
+    await pool.request()
+      .input('dienthoai', sql.Char, dienthoai)
+      .input('password', sql.VarChar, newPassword)
+      .query(`UPDATE Users SET password_hash = @password WHERE dienthoai = @dienthoai`);
+
+    res.status(200).json({ message: "Cập nhật mật khẩu thành công!" });
+  } catch (err) {
+    res.status(500).json({ error: "Lỗi máy chủ cơ sở dữ liệu." });
+  }
 });

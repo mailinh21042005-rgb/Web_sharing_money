@@ -1,19 +1,26 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     setError("");
+    if (!username.trim() || !password.trim()) {
+      setError("Vui lòng nhập tên đăng nhập và mật khẩu.");
+      return;
+    }
 
+    setIsSubmitting(true);
     try {
       const response = await fetch("http://localhost:5000/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const data = await response.json();
@@ -27,8 +34,10 @@ function Login() {
       } else {
         setError(data.error); 
       }
-    } catch (err) {
+    } catch {
       setError("Không tìm thấy tài khoản!");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -59,6 +68,7 @@ function Login() {
               className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
               placeholder="Nhập username..."
               required
+              autoComplete="username"
             />
           </div>
 
@@ -71,14 +81,21 @@ function Login() {
               className="w-full rounded-xl border border-[var(--border)] bg-transparent px-4 py-3 text-[var(--text)] outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
               placeholder="••••••••"
               required
+              autoComplete="current-password"
             />
+            <div className="mt-2 text-right">
+              <Link to="/forgot-password" className="text-sm font-medium text-[var(--primary)] hover:underline">
+                Quên mật khẩu?
+              </Link>
+            </div>
           </div>
 
           <button
             type="submit"
-            className="mt-2 rounded-full bg-[var(--button-primary)] py-3.5 text-sm font-semibold text-[var(--button-primary-text)] transition hover:bg-[var(--button-primary-hover)]"
+            disabled={!username.trim() || !password.trim() || isSubmitting}
+            className="mt-2 rounded-full bg-[var(--button-primary)] py-3.5 text-sm font-semibold text-[var(--button-primary-text)] transition enabled:hover:bg-[var(--button-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Đăng nhập
+            {isSubmitting ? "Đang đăng nhập..." : "Đăng nhập"}
           </button>
         </form>
 
