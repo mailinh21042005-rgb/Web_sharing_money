@@ -1,4 +1,5 @@
 ## Web Sharing Money - Ứng dụng quản lý tài chính nhóm
+
     * Khi thực hiện đi chơi hay mua sắm chung với nhóm bạn, sẽ có hoạt động hay món đồ mà không phải cả nhóm cùng tham gia.
     * Hay việc có nhiều người cùng chi tiền trước cho cả nhóm dễ gây bối rối khi tổng kết hoạt động chi tiêu sau một ngày dài mệt mỏi.
     => Với mong muốn tối ưu hóa thời gian khi chia tiền chi tiêu cho từng người trong quá trình thực hiện mua sắm chung, trang web của chúng mình ra đời để giúp mọi người thay vì phải tính toán thủ công cho từng món hàng mà có thể tự động hóa quá trình này <3  
