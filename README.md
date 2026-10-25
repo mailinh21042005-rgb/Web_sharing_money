@@ -36,13 +36,13 @@
 
 ## Cấu trúc thư mục hiện tại:
 *   Frontend:
-    src
-      pages
-        Dashboard.jsx: thể hiện thông tin hiện trên giao diện chính (cả trước khi đăng nhập và sau khi đăng nhập).
-        ForgotPassword.jsx: cập nhật logic để người dùng tạo lại mật khẩu khi bấm vào _**Quên mật khẩu**_
-        Login.jsx: thực hiện cơ chế đăng nhập bao gồm nhập các thông tin người dùng và mật khẩu.
-        Register.jsx: thực hiện cơ chế đăng ký (bao gồm các trường thông tin Họ đệm, Tên lót, Tên, Tên đăng nhập, Password) và nhập mã OTP vừa được gửi xác thực tới điện thoại.
-      firebase.js: thể hiện các thông tin trong cơ chế tường lửa (mở source để xem chi tiết).
+    * src
+      * pages
+        * Dashboard.jsx: thể hiện thông tin hiện trên giao diện chính (cả trước khi đăng nhập và sau khi đăng nhập).
+        * ForgotPassword.jsx: cập nhật logic để người dùng tạo lại mật khẩu khi bấm vào _**Quên mật khẩu**_
+        * Login.jsx: thực hiện cơ chế đăng nhập bao gồm nhập các thông tin người dùng và mật khẩu.
+        * Register.jsx: thực hiện cơ chế đăng ký (bao gồm các trường thông tin Họ đệm, Tên lót, Tên, Tên đăng nhập, Password) và nhập mã OTP vừa được gửi xác thực tới điện thoại.
+      * firebase.js: thể hiện các thông tin trong cơ chế tường lửa (mở source để xem chi tiết).
 *   Backend:
-    db.js: để khởi tạo kết nối với Azure SQL.
-    server.js: xây dựng hệ thống api cho việc kiểm tra hoạt động, đăng ký, trùng tài khoản, đăng nhập).
+    * db.js: để khởi tạo kết nối với Azure SQL.
+    * server.js: xây dựng hệ thống api cho việc kiểm tra hoạt động, đăng ký, trùng tài khoản, đăng nhập).
