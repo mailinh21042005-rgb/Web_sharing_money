@@ -100,7 +100,13 @@ function Login() {
         </form>
 
         <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-          Chưa có tài khoản? <a href="/register" className="font-semibold text-[var(--primary)] hover:underline">Đăng ký ngay</a>
+          Chưa có tài khoản?{" "}
+        <Link
+          to="/register"
+          className="font-semibold text-[var(--primary)] hover:underline"
+        >
+          Đăng ký ngay
+        </Link>
         </p>
       </div>
     </div>

@@ -54,7 +54,7 @@ function ForgotPassword() {
       
       setConfirmationResult(confirmation);
       setStep(2);
-    } catch (err) {
+    } catch {
       setError("Lỗi gửi SMS. Vui lòng thử lại.");
     } finally {
       setIsLoading(false);

@@ -24,8 +24,7 @@ function Navbar() {
   const avatarLetter = userName ? userName.charAt(0).toUpperCase() : "U";
 
   return (
-    <nav className="flex items-center justify-between px-6 py-5 lg:px-10">
-      {/* Logo */}
+  <nav className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 lg:px-10">      {/* Logo */}
       <Link to="/" className="flex items-center gap-3 transition hover:opacity-80">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--primary)] text-lg text-[var(--primary-text)]">
@@ -39,13 +38,12 @@ function Navbar() {
       </Link>
 
       {/* Navigation */}
-      <div className="hidden items-center gap-8 md:flex">
-        <a
-          href="#"
+      <div className="order-3 flex w-full flex-wrap items-center gap-4 md:order-none md:w-auto md:gap-8">        <Link
+          to="/"
           className="text-sm font-semibold text-[var(--primary)] transition hover:opacity-80"
         >
-          Tổng quan
-        </a>
+          Trang chủ
+        </Link>
 
         <a
           href="#"
@@ -60,6 +58,12 @@ function Navbar() {
         >
           Lịch sử
         </a>
+        <Link
+          to="/minigames"
+          className="text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)]"
+        >
+          Minigame
+        </Link>
       </div>
 
       {/* User */}
