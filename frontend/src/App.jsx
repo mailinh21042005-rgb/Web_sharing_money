@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from './pages/ForgotPassword';
 import Minigames from "./pages/Minigames";
+import ScanBill from "./pages/ScanBill";
 import BackButton from "./components/BackButton";
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/minigames" element={<Minigames />} />
+          <Route path="/scan-bill" element={<ScanBill />} />
         </Routes>
       </div>
     </BrowserRouter>

@@ -59,6 +59,12 @@ function Navbar() {
           Lịch sử
         </a>
         <Link
+          to="/scan-bill"
+          className="text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)]"
+        >
+          Quét bill
+        </Link>
+        <Link
           to="/minigames"
           className="text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)]"
         >
