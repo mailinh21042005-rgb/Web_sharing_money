@@ -13,8 +13,8 @@ function MyGroups() {
   const [selectedGroup, setSelectedGroup] = useState(null); 
   const [refreshTrigger, setRefreshTrigger] = useState(0); 
   
-  // State lưu trữ danh sách ID các nhóm có tin nhắn mới
-  const [unreadGroups, setUnreadGroups] = useState([]);
+  // State lưu trạng thái thông báo: { [groupId]: 'unread' | 'read' }
+  const [notifStatus, setNotifStatus] = useState({});
 
   const storedUser = JSON.parse(localStorage.getItem('user'));
   const currentUserId = storedUser ? storedUser.id : null;
@@ -24,12 +24,12 @@ function MyGroups() {
     if (!currentUserId) return;
     
     const handleNewGroupMessage = (newMsg) => {
-      // Logic: Nếu nhóm CÓ tin nhắn mới KHÔNG PHẢI là nhóm đang mở, hãy thêm vào unreadGroups
+      // Nếu nhóm CÓ tin nhắn mới KHÔNG PHẢI là nhóm đang mở, đổi trạng thái thành chưa đọc (đỏ)
       if (!selectedGroup || selectedGroup.id !== newMsg.group_id) {
-        setUnreadGroups(prev => {
-          if (!prev.includes(newMsg.group_id)) return [...prev, newMsg.group_id];
-          return prev;
-        });
+        setNotifStatus(prev => ({
+          ...prev, 
+          [newMsg.group_id]: 'unread'
+        }));
       }
     };
     
@@ -39,13 +39,6 @@ function MyGroups() {
       socket.off("receiveMessage", handleNewGroupMessage);
     };
   }, [currentUserId, selectedGroup]);
-
-  // Xóa thông báo đỏ khi mở nhóm ra xem
-  useEffect(() => {
-    if (selectedGroup) {
-      setUnreadGroups(prev => prev.filter(id => id !== selectedGroup.id));
-    }
-  }, [selectedGroup]);
 
   // Khai báo hàm fetch data
   const fetchMyGroups = useCallback(async () => {
@@ -76,6 +69,22 @@ function MyGroups() {
 
   const handleGroupUpdated = () => {
     setRefreshTrigger(prev => prev + 1); 
+  };
+
+  // Xử lý khi bấm mở nhóm
+  const handleGroupClick = (group) => {
+    setSelectedGroup(group);
+    
+    // Đổi trạng thái từ 'unread' (chưa đọc) sang 'read' (đã đọc)
+    if (notifStatus[group.id] === 'unread') {
+      setNotifStatus(prev => ({
+        ...prev,
+        [group.id]: 'read'
+      }));
+    }
+    
+    // GỬI TÍN HIỆU TẮT CHẤM ĐỎ LÊN THANH NAVBAR
+    window.dispatchEvent(new Event("clearNavbarNotif"));
   };
 
   if (!currentUserId) {
@@ -116,15 +125,22 @@ function MyGroups() {
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((group) => {
-            const hasUnread = unreadGroups.includes(group.id);
+            const status = notifStatus[group.id];
+
             return (
-              <div key={group.id} onClick={() => setSelectedGroup(group)} className="cursor-pointer relative">
-                {/* Chấm đỏ báo tin mới */}
-                {hasUnread && (
-                  <span className="absolute -right-2 -top-2 z-10 flex h-4 w-4">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-75"></span>
-                    <span className="relative inline-flex h-4 w-4 rounded-full bg-[var(--danger)] border-2 border-[var(--background)]"></span>
-                  </span>
+              <div 
+                key={group.id} 
+                onClick={() => handleGroupClick(group)} 
+                className="cursor-pointer relative"
+              >
+                {/* Chấm thông báo Đỏ (Chưa đọc) - Đã bỏ animate-ping */}
+                {status === 'unread' && (
+                  <span className="absolute -right-1 -top-1 z-10 h-4 w-4 rounded-full bg-[var(--danger)] border-2 border-[var(--background)] shadow-sm"></span>
+                )}
+                
+                {/* Chấm thông báo Xanh (Đã đọc) */}
+                {status === 'read' && (
+                  <span className="absolute -right-1 -top-1 z-10 h-4 w-4 rounded-full bg-[var(--success)] border-2 border-[var(--background)] shadow-sm"></span>
                 )}
                 
                 <GroupCard 

@@ -20,9 +20,9 @@ function Navbar() {
     if (user && user.id) {
       socket.emit("userLogin", user.id);
 
-      // Nhận thông báo Real-time
       const handleNotification = (data) => {
-        alert("🔔 " + data.message);
+        // Tạm ẩn alert đi cho đỡ phiền nếu bạn đang chat liên tục, nếu muốn bạn có thể bật lại
+        // alert("🔔 " + data.message); 
         setHasNewNotif(true);
       };
 
@@ -33,6 +33,13 @@ function Navbar() {
       };
     }
   }, [user]);
+
+  // LẮNG NGHE TÍN HIỆU XÓA THÔNG BÁO TỪ CÁC COMPONENT KHÁC (MyGroups)
+  useEffect(() => {
+    const handleClearNotif = () => setHasNewNotif(false);
+    window.addEventListener("clearNavbarNotif", handleClearNotif);
+    return () => window.removeEventListener("clearNavbarNotif", handleClearNotif);
+  }, []);
 
   // Đóng dropdown khi click ra ngoài
   useEffect(() => {
@@ -48,7 +55,6 @@ function Navbar() {
   const userName = user?.ten || "";
   const isLoggedIn = Boolean(user);
 
-  // Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -61,7 +67,6 @@ function Navbar() {
 
   return (
     <nav className="relative flex items-center justify-between px-6 py-5 lg:px-10">
-      {/* Logo */}
       <Link to="/" className="flex shrink-0 items-center gap-3 transition hover:opacity-80">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[var(--primary)] text-lg text-[var(--primary-text)]">
@@ -73,26 +78,29 @@ function Navbar() {
         </div>
       </Link>
 
-      {/* Desktop Navigation (Chỉ hiện trên màn hình rất lớn - Máy tính) */}
       <div className="hidden xl:flex items-center gap-6 lg:gap-8">
         <Link to="/" className="text-sm font-semibold text-[var(--primary)] transition hover:opacity-80 whitespace-nowrap">
           Trang chủ
         </Link>
-        <Link to="/groups" className="text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)] whitespace-nowrap">
-          Nhóm của tôi
-        </Link>
         <Link 
-          to="/notifications" 
+          to="/groups" 
           onClick={() => setHasNewNotif(false)} 
           className="relative text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)] whitespace-nowrap"
         >
-          Thông báo
+          Nhóm của tôi
           {hasNewNotif && (
             <span className="absolute -right-2 -top-1 flex h-3 w-3">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-75"></span>
               <span className="relative inline-flex h-3 w-3 rounded-full bg-[var(--danger)]"></span>
             </span>
           )}
+        </Link>
+        <Link 
+          to="/notifications" 
+          onClick={() => setHasNewNotif(false)} 
+          className="text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)] whitespace-nowrap"
+        >
+          Thông báo
         </Link>
         <Link to="/scan-bill" className="text-sm font-medium text-[var(--text-muted)] transition hover:text-[var(--primary)] whitespace-nowrap">
           Quét bill
@@ -102,7 +110,6 @@ function Navbar() {
         </Link>
       </div>
 
-      {/* Control Area (Theme + User) */}
       <div className="flex shrink-0 items-center gap-3">
         <ThemeToggle />
         
@@ -120,24 +127,31 @@ function Navbar() {
               </span>
             </button>
 
-            {/* Dropdown Avatar Menu */}
             {isDropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-[var(--border)] bg-[var(--surface)] py-2 shadow-lg z-50">
-                
-                {/* Mobile/Tablet Navigation Links (Chỉ hiện khi màn hình nhỏ hơn Máy tính) */}
                 <div className="xl:hidden">
                   <Link to="/" onClick={() => setIsDropdownOpen(false)} className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]">
                     🏠 Trang chủ
                   </Link>
-                  <Link to="/groups" onClick={() => setIsDropdownOpen(false)} className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]">
-                    👥 Nhóm của tôi
+                  <Link 
+                    to="/groups" 
+                    onClick={() => { setHasNewNotif(false); setIsDropdownOpen(false); }} 
+                    className="relative flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]"
+                  >
+                    <span>👥 Nhóm của tôi</span>
+                    {hasNewNotif && (
+                      <span className="flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-75"></span>
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--danger)]"></span>
+                      </span>
+                    )}
                   </Link>
                   <Link 
                     to="/notifications" 
                     onClick={() => { setHasNewNotif(false); setIsDropdownOpen(false); }} 
-                    className="relative flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]"
+                    className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]"
                   >
-                    <span>🔔 Thông báo</span>
+                    🔔 Thông báo
                   </Link>
                   <Link to="/scan-bill" onClick={() => setIsDropdownOpen(false)} className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]">
                     🧾 Quét bill
@@ -148,7 +162,6 @@ function Navbar() {
                   <div className="mx-4 my-1 h-px bg-[var(--border)]"></div>
                 </div>
 
-                {/* Account Links (Luôn hiện) */}
                 <Link 
                   to="/friends" 
                   onClick={() => setIsDropdownOpen(false)}
