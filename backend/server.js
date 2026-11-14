@@ -548,7 +548,10 @@ app.get('/api/users/profile', authenticateToken, async (req, res) => {
         request.input('user_id', sql.Int, req.user.id);
         const result = await request.query(`
             SELECT
-                u.ten AS ten,
+                u.username,
+                u.hodem,
+                u.tenlot,
+                u.ten,
                 u.dienthoai AS soDienThoai,
                 COALESCE(p.dia_chi, N'') AS diaChi,
                 COALESCE(p.is_dia_chi_public, 0) AS isDiaChiPublic,
@@ -594,8 +597,9 @@ app.put(
         try {
             await ensureUserProfilesTable();
 
+            // 1. Nhận hoVaTen từ Frontend thay vì ten
             const {
-                ten,
+                hoVaTen, 
                 soDienThoai,
                 diaChi,
                 isDiaChiPublic,
@@ -605,8 +609,28 @@ app.put(
                 isNganHangPublic
             } = req.body;
 
-            if (typeof ten !== 'string' || !ten.trim() || ten.trim().length > 10) {
-                return res.status(400).json({ error: 'Tên phải có từ 1 đến 10 ký tự.' });
+            // 2. Logic cắt chuỗi Họ và Tên thành 3 phần
+            let hodem = '';
+            let tenlot = '';
+            let ten = '';
+            
+            if (hoVaTen && typeof hoVaTen === 'string') {
+                const parts = hoVaTen.trim().split(/\s+/);
+                if (parts.length === 1) {
+                    ten = parts[0];
+                } else if (parts.length === 2) {
+                    hodem = parts[0];
+                    ten = parts[1];
+                } else if (parts.length >= 3) {
+                    hodem = parts[0];
+                    ten = parts[parts.length - 1];
+                    tenlot = parts.slice(1, parts.length - 1).join(' ');
+                }
+            }
+
+            // 3. Validate dữ liệu (Đã sửa lại để không báo lỗi sai)
+            if (!ten || ten.length > 10) {
+                return res.status(400).json({ error: 'Tên (từ cuối cùng) không được để trống hoặc vượt quá 10 ký tự.' });
             }
             if (typeof soDienThoai !== 'string' || !/^\d{10}$/.test(soDienThoai)) {
                 return res.status(400).json({ error: 'Số điện thoại phải gồm 10 chữ số.' });
@@ -629,6 +653,7 @@ app.put(
                 return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
             }
 
+            // Kiểm tra trùng số điện thoại
             const duplicatePhone = await new sql.Request()
                 .input('user_id', sql.Int, userId)
                 .input('phone', sql.Char(10), soDienThoai)
@@ -639,7 +664,9 @@ app.put(
 
             const request = new sql.Request();
             request.input('user_id', sql.Int, userId);
-            request.input('ten', sql.NVarChar(10), ten.trim());
+            request.input('hodem', sql.NVarChar(20), hodem.substring(0, 20));
+            request.input('tenlot', sql.NVarChar(20), tenlot.substring(0, 20));
+            request.input('ten', sql.NVarChar(10), ten.substring(0, 10));
             request.input('phone', sql.Char(10), soDienThoai);
             request.input('dia_chi', sql.NVarChar(255), diaChi.trim());
             request.input('is_dia_chi_public', sql.Bit, isDiaChiPublic === 'true');
@@ -655,7 +682,7 @@ app.put(
                 BEGIN TRANSACTION;
                 BEGIN TRY
                     UPDATE dbo.Users
-                    SET ten = @ten, dienthoai = @phone
+                    SET hodem = @hodem, tenlot = @tenlot, ten = @ten, dienthoai = @phone
                     WHERE id = @user_id;
 
                     IF EXISTS (SELECT 1 FROM dbo.UserProfiles WHERE user_id = @user_id)
@@ -682,7 +709,7 @@ app.put(
                             @avatar, @avatar_mimetype
                         );
 
-                    COMMIT TRANSACTION;
+                COMMIT TRANSACTION;
                 END TRY
                 BEGIN CATCH
                     IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
