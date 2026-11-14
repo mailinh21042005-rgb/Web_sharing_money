@@ -23,12 +23,10 @@ function Notifications() {
       });
       if (res.ok) {
         if (action === 'accepted') {
-          // Thay vì xóa khỏi danh sách, đổi trạng thái cục bộ thành 'accepted'
           setRequests(requests.map(req => 
             req.sender_id === senderId ? { ...req, status: 'accepted' } : req
           ));
         } else {
-          // Nếu từ chối thì xóa luôn khỏi giao diện
           setRequests(requests.filter(req => req.sender_id !== senderId));
         }
       }
@@ -41,6 +39,7 @@ function Notifications() {
     if (!dateString) return "";
     const date = new Date(dateString);
     const now = new Date();
+    // Đã sửa lại lỗi rớt dòng ở đây
     const diffInSeconds = Math.floor((now - date) / 1000);
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     const diffInHours = Math.floor(diffInMinutes / 60);
@@ -65,9 +64,24 @@ function Notifications() {
           {requests.map(req => (
             <div key={req.sender_id} className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--avatar-background)] font-bold text-[var(--avatar-text)]">
-                  {req.ten.charAt(0).toUpperCase()}
+                
+                {/* LOGIC HIỂN THỊ AVATAR BASE64 CHO THÔNG BÁO */}
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-bold text-[var(--avatar-text)] shadow-sm">
+                  {req.avatar && req.avatar.startsWith('data:image') ? (
+                    <img 
+                      src={req.avatar} 
+                      alt={req.ten} 
+                      className="h-full w-full object-cover" 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${req.ten || "U"}&background=E9D5FF&color=7E22CE&length=1`;
+                      }}
+                    />
+                  ) : (
+                    req.ten ? req.ten.charAt(0).toUpperCase() : "U"
+                  )}
                 </div>
+
                 <div>
                   {req.status === 'accepted' ? (
                     <p className="text-sm text-[var(--text)]">
@@ -85,7 +99,6 @@ function Notifications() {
                 </div>
               </div>
               
-              {/* Chỉ hiện nút Chấp nhận/Từ chối nếu chưa xử lý */}
               {req.status !== 'accepted' && (
                 <div className="flex gap-2">
                   <button onClick={() => handleRespond(req.sender_id, 'accepted')} className="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--primary-text)] hover:opacity-80">

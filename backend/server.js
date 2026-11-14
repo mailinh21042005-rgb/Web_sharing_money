@@ -193,9 +193,10 @@ app.get('/api/notifications/:userId', async (req, res) => {
         await request.query(`DELETE FROM Friends WHERE created_at < DATEADD(DAY, -30, GETDATE())`);
 
         const result = await request.query(`
-            SELECT f.user_id as sender_id, u.ten, u.hodem, u.tenlot, f.created_at, f.status
+            SELECT f.user_id as sender_id, u.ten, u.hodem, u.tenlot, f.created_at, f.status, p.avatar, p.avatar_mimetype   
             FROM Friends f
             JOIN Users u ON f.user_id = u.id
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
             WHERE f.friend_id = @user_id AND (f.status = 'pending' OR f.status = 'accepted')
             ORDER BY f.created_at DESC
         `);
@@ -215,8 +216,9 @@ app.post('/api/users/search', async (req, res) => {
         request.input('query', sql.VarChar(50), searchQuery);
         
         const result = await request.query(`
-            SELECT id, ten, hodem, tenlot, dienthoai, username 
+            SELECT id, ten, hodem, tenlot, dienthoai, username, p.avatar, p.avatar_mimetype
             FROM Users 
+            LEFT JOIN UserProfiles p ON Users.id = p.user_id
             WHERE dienthoai = @query OR username = @query
         `);
 
@@ -398,9 +400,10 @@ app.get('/api/users/:userId/groups', async (req, res) => {
                 g.id, 
                 g.name,
                 (
-                    SELECT STRING_AGG(u.ten, ',') 
+                    u.ten + '|' + ISNULL(CAST(p.avatar_mimetype AS VARCHAR(MAX)), '') + '|' + ISNULL(CAST(p.avatar AS VARCHAR(MAX)), ''), ','
                     FROM GroupMembers gm2 
                     JOIN Users u ON gm2.user_id = u.id 
+                    LEFT JOIN UserProfiles p ON u.id = p.user_id 
                     WHERE gm2.group_id = g.id
                 ) as member_names,
                 (
@@ -419,7 +422,7 @@ app.get('/api/users/:userId/groups', async (req, res) => {
         const formattedGroups = result.recordset.map(group => ({
             id: group.id,
             name: group.name,
-            members: group.member_names ? group.member_names.split(',') : [],
+            members: members,
             transaction_count: 0, 
             total_amount: 0,
             hasUnread: group.has_unread === 1

@@ -145,7 +145,7 @@ function MyGroups() {
                 name={group.name} 
                 transactions={group.transaction_count || 0} 
                 amount={`₫${group.total_amount || 0}`} 
-                members={group.members ? group.members.map(m => m.charAt(0).toUpperCase()) : ["?"]} 
+                members={group.members || []}
               />
             </div>
           ))}

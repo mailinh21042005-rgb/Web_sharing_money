@@ -10,47 +10,47 @@ function Navbar() {
     const userStr = localStorage.getItem("user");
     return userStr ? JSON.parse(userStr) : null;
   });
-  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [hasNewNotif, setHasNewNotif] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  // Bật socket thông báo khi user đã đăng nhập
+  // 1. CƠ CHẾ ĐỒNG BỘ CƯỠNG CHẾ (Giải quyết dứt điểm lỗi Avatar)
   useEffect(() => {
-    const fetchMissingAvatar = async () => {
-      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+    const syncProfile = async () => {
       const token = localStorage.getItem("token");
-      if (storedUser && storedUser.id && !storedUser.avatar && token) {
-        try {
-          // Sửa link gọi API về đúng chuẩn backend
-          const response = await fetch("https://web-sharing-money.onrender.com/api/users/profile", {
-            headers: { "Authorization": `Bearer ${token}` }
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.avatar) {
-              const updatedUser = { ...storedUser, avatar: data.avatar };
-              localStorage.setItem("user", JSON.stringify(updatedUser));
-              setUser(updatedUser);
-            }
+      if (!token) return;
+
+      try {
+        const response = await fetch("https://web-sharing-money.onrender.com/api/users/profile", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+          
+          // Cập nhật lại localStorage và State nếu có ảnh
+          if (data.avatar && data.avatar !== storedUser.avatar) {
+            const updatedUser = { ...storedUser, ...data, avatar: data.avatar };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            setUser(updatedUser);
           }
-        } catch (error) {
-          console.error("Lỗi khi tải avatar:", error);
         }
+      } catch (error) {
+        console.error("Lỗi đồng bộ thông tin:", error);
       }
     };
 
-    fetchMissingAvatar();
+    syncProfile();
   }, []);
 
+  // 2. LOGIC SOCKET THÔNG BÁO
   useEffect(() => {
     if (user && user.id) {
       socket.emit("userLogin", user.id);
 
       const handleNotification = (data) => {
-        // Tạm ẩn alert đi cho đỡ phiền nếu bạn đang chat liên tục, nếu muốn bạn có thể bật lại
-        // alert("🔔 " + data.message); 
         setHasNewNotif(true);
       };
 
@@ -61,13 +61,6 @@ function Navbar() {
       };
     }
   }, [user]);
-
-  // LẮNG NGHE TÍN HIỆU XÓA THÔNG BÁO TỪ CÁC COMPONENT KHÁC (MyGroups)
-  useEffect(() => {
-    const handleClearNotif = () => setHasNewNotif(false);
-    window.addEventListener("clearNavbarNotif", handleClearNotif);
-    return () => window.removeEventListener("clearNavbarNotif", handleClearNotif);
-  }, []);
 
   // Đóng dropdown khi click ra ngoài
   useEffect(() => {
@@ -80,7 +73,7 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Cập nhật user
+  // Lắng nghe tín hiệu cập nhật từ trang Profile
   useEffect(() => {
     const handleUserUpdated = () => {
       const userStr = localStorage.getItem("user");
@@ -94,10 +87,6 @@ function Navbar() {
     return () => window.removeEventListener("userUpdated", handleUserUpdated);
   }, []);
 
-  useEffect(() => {
-    setAvatarLoadFailed(false);
-  }, [user?.avatar]);
-
   const userName = user?.ten || "";
   const isLoggedIn = Boolean(user);
 
@@ -108,8 +97,6 @@ function Navbar() {
     setIsDropdownOpen(false);
     navigate("/login");
   };
-
-  const avatarLetter = userName ? userName.charAt(0).toUpperCase() : "U";
 
   return (
     <nav className="relative flex items-center justify-between px-6 py-5 lg:px-10">
@@ -165,21 +152,23 @@ function Navbar() {
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-2 transition hover:opacity-80 focus:outline-none sm:gap-3"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm border border-gray-200">
-                {user?.avatar && !avatarLoadFailed ? (
+              {/* ĐÂY LÀ PHẦN RENDER AVATAR ĐÃ ĐƯỢC FIX LỖI TẬN GỐC */}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm border border-[var(--border)]">
+                {user?.avatar && user.avatar.startsWith('data:image') ? (
                   <img
                     src={user.avatar}
                     alt="Avatar"
                     className="h-full w-full object-cover"
                     onError={(e) => {
                       e.target.onerror = null; 
-                      e.target.src = `https://ui-avatars.com/api/?name=${user?.ten || "U"}&background=E9D5FF&color=7E22CE&length=1`;
+                      e.target.src = `https://ui-avatars.com/api/?name=${userName || "U"}&background=E9D5FF&color=7E22CE&length=1`;
                     }}
                   />
                 ) : (
-                  user?.ten ? user.ten.charAt(0).toUpperCase() : "U"
+                  userName ? userName.charAt(0).toUpperCase() : "U"
                 )}
               </div>
+
               <span className="hidden text-sm font-medium text-[var(--text)] sm:block whitespace-nowrap max-w-[100px] truncate">
                 {userName}
               </span>

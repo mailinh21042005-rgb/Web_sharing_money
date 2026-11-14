@@ -35,14 +35,33 @@ function GroupCard({ icon, name, transactions, amount, members }) {
         </div>
 
         <div className="flex -space-x-2">
-          {members.map((member, index) => (
-            <div
-              key={index}
-              className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-[var(--surface)] bg-[var(--avatar-background)] text-xs font-semibold text-[var(--avatar-text)]"
-            >
-              {member}
-            </div>
-          ))}
+          {Array.isArray(members) && members.map((member, index) => {
+            const isObject = typeof member === 'object' && member !== null;
+            const memberName = isObject ? member.name : member;
+            const memberAvatar = isObject ? member.avatar : null;
+
+            return (
+              <div
+                key={isObject && member.id ? member.id : index}
+                className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm -ml-2 border border-white first:ml-0"
+                title={memberName}
+              >
+                {memberAvatar && typeof memberAvatar === 'string' && memberAvatar.startsWith('data:image') ? (
+                  <img
+                    src={memberAvatar}
+                    alt={memberName}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = `https://ui-avatars.com/api/?name=${memberName || "U"}&background=E9D5FF&color=7E22CE&length=1`;
+                    }}
+                  />
+                ) : (
+                  memberName ? String(memberName).charAt(0).toUpperCase() : "U"
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
