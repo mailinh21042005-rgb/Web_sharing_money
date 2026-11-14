@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "browser-image-compression": "^2.0.2"
+    "browser-image-compression": "^2.0.2",
+    "socket.io": "^4.8.4"
   }
 }

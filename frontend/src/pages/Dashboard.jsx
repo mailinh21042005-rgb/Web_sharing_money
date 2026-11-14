@@ -3,19 +3,27 @@ import GroupCard from "../components/GroupCard";
 import DebtCard from "../components/DebtCard";
 import ActivityItem from "../components/ActivityItem";
 import StatCard from "../components/StatCard";
+// Import 2 component mới
+import AddFriend from "../components/AddFriend";
+import ManageGroup from "../components/ManageGroup";
 
 function Dashboard() {
   const [user] = useState(() => {
-  const userStr = localStorage.getItem("user");
-  return userStr ? JSON.parse(userStr) : null;
+    const userStr = localStorage.getItem("user");
+    return userStr ? JSON.parse(userStr) : null;
   });
 
   const isLoggedIn = Boolean(user);
   const userName = user?.ten || "";
 
+  // State quản lý việc hiển thị Modal
+  const [activeModal, setActiveModal] = useState(null); // 'group', 'friend', hoặc null
+
+  const closeModal = () => setActiveModal(null);
+
   return (
-    <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
-      {/* Welcome */}
+    <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10 relative">
+      {/* Welcome Section */}
       <section className="mb-10 overflow-hidden rounded-[32px] bg-[var(--primary-soft)] px-7 py-8 md:px-10 md:py-10">
         <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
           <div>
@@ -36,50 +44,32 @@ function Dashboard() {
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-3">
-            <button className="rounded-full border border-[var(--border)] bg-[var(--button-secondary)] px-5 py-3 text-sm font-semibold text-[var(--button-secondary-text)] transition hover:bg-[var(--button-secondary-hover)]">
-              + Thêm chi tiêu
+            {/* Nút gọi Modal Thêm Bạn */}
+            <button 
+              onClick={() => isLoggedIn ? setActiveModal('friend') : alert("Vui lòng đăng nhập!")}
+              className="rounded-full border border-[var(--border)] bg-[var(--button-secondary)] px-5 py-3 text-sm font-semibold text-[var(--button-secondary-text)] transition hover:bg-[var(--button-secondary-hover)]"
+            >
+              + Tìm bạn bè
             </button>
 
-            <button className="rounded-full bg-[var(--button-primary)] px-5 py-3 text-sm font-semibold text-[var(--button-primary-text)] transition hover:bg-[var(--button-primary-hover)]">
+            {/* Nút gọi Modal Tạo Nhóm */}
+            <button 
+              onClick={() => isLoggedIn ? setActiveModal('group') : alert("Vui lòng đăng nhập!")}
+              className="rounded-full bg-[var(--button-primary)] px-5 py-3 text-sm font-semibold text-[var(--button-primary-text)] transition hover:bg-[var(--button-primary-hover)]"
+            >
               + Tạo nhóm mới
             </button>
           </div>
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Stats Section */}
+      {/* ... (Giữ nguyên đoạn render StatCard) ... */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Bạn cần trả"
-          amount="₫125.000"
-          description="Cho 2 người"
-          icon="↗"
-          variant="pink"
-        />
-
-        <StatCard
-          title="Mọi người nợ bạn"
-          amount="₫280.000"
-          description="Từ 3 người"
-          icon="↓"
-          variant="green"
-        />
-
-        <StatCard
-          title="Chi tiêu tháng này"
-          amount="₫1.450.000"
-          description="+12% so với tháng trước"
-          icon="◌"
-          variant="yellow"
-        />
-
-        <StatCard
-          title="Nhóm đang hoạt động"
-          amount="3"
-          description="Nhóm của bạn"
-          icon="♡"
-          variant="white"
-        />
+        <StatCard title="Bạn cần trả" amount="₫125.000" description="Cho 2 người" icon="↗" variant="pink" />
+        <StatCard title="Mọi người nợ bạn" amount="₫280.000" description="Từ 3 người" icon="↓" variant="green" />
+        <StatCard title="Chi tiêu tháng này" amount="₫1.450.000" description="+12% so với tháng trước" icon="◌" variant="yellow" />
+        <StatCard title="Nhóm đang hoạt động" amount="3" description="Nhóm của bạn" icon="♡" variant="white" />
       </section>
 
       {/* Main content */}
@@ -88,44 +78,18 @@ function Dashboard() {
         <div>
           <div className="mb-5 flex items-end justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-[var(--text)]">
-                Nhóm gần đây
-              </h2>
-
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
-                Những nhóm bạn thường xuyên sử dụng
-              </p>
+              <h2 className="text-xl font-semibold text-[var(--text)]">Nhóm gần đây</h2>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">Những nhóm bạn thường xuyên sử dụng</p>
             </div>
-
             <button className="text-sm font-semibold text-[var(--primary)] transition hover:opacity-80">
               Xem tất cả →
             </button>
           </div>
 
           <div className="grid gap-4">
-            <GroupCard
-              icon="💕"
-              name="Hội bạn thân"
-              transactions="12"
-              amount="₫450.000"
-              members={["L", "N", "C"]}
-            />
-
-            <GroupCard
-              icon="🏠"
-              name="Ở ghép vui vẻ"
-              transactions="8"
-              amount="₫820.000"
-              members={["L", "M", "N", "C"]}
-            />
-
-            <GroupCard
-              icon="🌴"
-              name="Team đi Đà Lạt"
-              transactions="5"
-              amount="₫1.280.000"
-              members={["L", "A", "T"]}
-            />
+            <GroupCard icon="💕" name="Hội bạn thân" transactions="12" amount="₫450.000" members={["L", "N", "C"]} />
+            <GroupCard icon="🏠" name="Ở ghép vui vẻ" transactions="8" amount="₫820.000" members={["L", "M", "N", "C"]} />
+            <GroupCard icon="🌴" name="Team đi Đà Lạt" transactions="5" amount="₫1.280.000" members={["L", "A", "T"]} />
           </div>
         </div>
 
@@ -139,46 +103,42 @@ function Dashboard() {
       <section className="mt-10 rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
         <div className="flex items-end justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-[var(--text)]">
-              Hoạt động gần đây
-            </h2>
-
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              Các khoản chi tiêu mới nhất
-            </p>
+            <h2 className="text-xl font-semibold text-[var(--text)]">Hoạt động gần đây</h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Các khoản chi tiêu mới nhất</p>
           </div>
-
           <button className="text-sm font-semibold text-[var(--primary)] transition hover:opacity-80">
             Xem lịch sử →
           </button>
         </div>
 
         <div className="mt-4">
-          <ActivityItem
-            icon="🍜"
-            name="Lẩu cuối tuần"
-            person="Linh đã trả"
-            date="Hôm nay"
-            amount="₫600.000"
-          />
-
-          <ActivityItem
-            icon="🛒"
-            name="Hóa đơn siêu thị"
-            person="Nọc đã trả"
-            date="Hôm qua"
-            amount="₫420.000"
-          />
-
-          <ActivityItem
-            icon="☕"
-            name="Cà phê và bánh"
-            person="Nhi đã trả"
-            date="16/10/2026"
-            amount="₫120.000"
-          />
+          <ActivityItem icon="🍜" name="Lẩu cuối tuần" person="Linh đã trả" date="Hôm nay" amount="₫600.000" />
+          <ActivityItem icon="🛒" name="Hóa đơn siêu thị" person="Nọc đã trả" date="Hôm qua" amount="₫420.000" />
+          <ActivityItem icon="☕" name="Cà phê và bánh" person="Nhi đã trả" date="16/10/2026" amount="₫120.000" />
         </div>
       </section>
+
+      {/* ================= MODAL LAYER ================= */}
+      {activeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-[var(--background)] shadow-2xl p-6">
+            {/* Nút đóng Modal */}
+            <button 
+              onClick={closeModal}
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
+            >
+              ✕
+            </button>
+            
+            {/* Render component dựa trên state */}
+            <div className="mt-4">
+              {activeModal === 'friend' && <AddFriend />}
+              {activeModal === 'group' && <ManageGroup />}
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
