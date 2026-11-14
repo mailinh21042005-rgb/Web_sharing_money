@@ -84,8 +84,20 @@ function Friends() {
           {friends.map((friend) => (
             <div key={friend.id} className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)]">
-                  {friend.avatar}
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm">
+                  {friend.avatar && friend.avatar.startsWith('data:image') ? (
+                    <img 
+                      src={friend.avatar} 
+                      alt="Avatar" 
+                      className="h-full w-full object-cover" 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${friend.name || "U"}&background=E9D5FF&color=7E22CE`;
+                      }}
+                    />
+                  ) : (
+                    friend.avatar || "U"
+                  )}
                 </div>
                 <span className="text-sm font-medium text-[var(--text)]">{friend.name}</span>
               </div>

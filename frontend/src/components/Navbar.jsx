@@ -10,6 +10,7 @@ function Navbar() {
     const userStr = localStorage.getItem("user");
     return userStr ? JSON.parse(userStr) : null;
   });
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [hasNewNotif, setHasNewNotif] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -58,11 +59,17 @@ function Navbar() {
       const userStr = localStorage.getItem("user");
       if (userStr) {
         setUser(JSON.parse(userStr));
+      } else {
+        setUser(null);
       }
     };
     window.addEventListener("userUpdated", handleUserUpdated);
     return () => window.removeEventListener("userUpdated", handleUserUpdated);
   }, []);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [user?.avatar]);
 
   const userName = user?.ten || "";
   const isLoggedIn = Boolean(user);
@@ -132,10 +139,18 @@ function Navbar() {
               className="flex items-center gap-2 transition hover:opacity-80 focus:outline-none sm:gap-3"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm border border-gray-200">
-                {user?.avatar ? (
-                  <img src={user.avatar} alt="Avatar" className="h-full w-full object-cover" />
+                {user?.avatar && !avatarLoadFailed ? (
+                  <img
+                    src={user.avatar}
+                    alt="Avatar"
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null; 
+                      e.target.src = `https://ui-avatars.com/api/?name=${user?.ten || "U"}&background=E9D5FF&color=7E22CE&length=1`;
+                    }}
+                  />
                 ) : (
-                  avatarLetter
+                  user?.ten ? user.ten.charAt(0).toUpperCase() : "U"
                 )}
               </div>
               <span className="hidden text-sm font-medium text-[var(--text)] sm:block whitespace-nowrap max-w-[100px] truncate">

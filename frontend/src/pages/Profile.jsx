@@ -53,10 +53,16 @@ function Profile() {
         });
 
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
-        if (data.avatar && currentUser.avatar !== data.avatar) {
-          localStorage.setItem("user", JSON.stringify({ ...currentUser, avatar: data.avatar }));
-          window.dispatchEvent(new Event("storage")); 
-        }
+        const updatedUser = {
+          ...currentUser,
+          ten: data.ten || currentUser.ten,
+          username: data.username || currentUser.username,
+          dienthoai: data.soDienThoai || currentUser.dienthoai,
+        };
+        if (data.avatar) updatedUser.avatar = data.avatar;
+        else delete updatedUser.avatar;
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event("userUpdated"));
         if (data.avatar) setPreviewAvatar(data.avatar);
 
       } catch (loadError) {
