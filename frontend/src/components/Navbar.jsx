@@ -18,6 +18,33 @@ function Navbar() {
 
   // Bật socket thông báo khi user đã đăng nhập
   useEffect(() => {
+    const fetchMissingAvatar = async () => {
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const token = localStorage.getItem("token");
+      if (storedUser && storedUser.id && !storedUser.avatar && token) {
+        try {
+          // Sửa link gọi API về đúng chuẩn backend
+          const response = await fetch("https://web-sharing-money.onrender.com/api/users/profile", {
+            headers: { "Authorization": `Bearer ${token}` }
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.avatar) {
+              const updatedUser = { ...storedUser, avatar: data.avatar };
+              localStorage.setItem("user", JSON.stringify(updatedUser));
+              setUser(updatedUser);
+            }
+          }
+        } catch (error) {
+          console.error("Lỗi khi tải avatar:", error);
+        }
+      }
+    };
+
+    fetchMissingAvatar();
+  }, []);
+
+  useEffect(() => {
     if (user && user.id) {
       socket.emit("userLogin", user.id);
 
