@@ -7,7 +7,7 @@ function Notifications() {
 
   useEffect(() => {
     if (currentUserId) {
-      fetch(`http://localhost:5000/api/notifications/${currentUserId}`)
+      fetch(`https://web-sharing-money.onrender.com/api/notifications/${currentUserId}`)
         .then(res => res.json())
         .then(data => setRequests(data))
         .catch(err => console.error("Lỗi tải thông báo:", err));
@@ -16,7 +16,7 @@ function Notifications() {
 
   const handleRespond = async (senderId, action) => {
     try {
-      const res = await fetch("http://localhost:5000/api/friends/respond", {
+      const res = await fetch("https://web-sharing-money.onrender.com/api/friends/respond", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sender_id: senderId, receiver_id: currentUserId, action, responder_name: storedUser.ten})

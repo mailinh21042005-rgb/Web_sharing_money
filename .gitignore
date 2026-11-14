@@ -8,10 +8,32 @@ frontend/node_modules/
 
 # Logs
 *.log
+frontend/**/logs/
+frontend/**/npm-debug.log*
+frontend/**/yarn-debug.log*
+frontend/**/yarn-error.log*
+frontend/**/pnpm-debug.log*
+frontend/**/lerna-debug.log*
 
 # Build files
 frontend/dist/
 frontend/build/
+frontend/**/dist/
+frontend/**/dist-ssr/
+
+# Frontend local files
+frontend/*.local
+frontend/**/*.local
+
+# Frontend editor directories and files
+frontend/.vscode/*
+!frontend/.vscode/extensions.json
+frontend/**/.idea/
+frontend/**/*.suo
+frontend/**/*.ntvs*
+frontend/**/*.njsproj
+frontend/**/*.sln
+frontend/**/*.sw?
 
 # OS generated files
 .DS_Store

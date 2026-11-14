@@ -4,7 +4,7 @@ import ManageGroup from "../components/ManageGroup";
 import GroupDetail from "../components/GroupDetail"; 
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000");
+const socket = io("https://web-sharing-money.onrender.com");
 
 function MyGroups() {
   const [groups, setGroups] = useState([]);
@@ -56,7 +56,7 @@ function MyGroups() {
     
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${currentUserId}/groups`);
+      const response = await fetch(`https://web-sharing-money.onrender.com/api/users/${currentUserId}/groups`);
       const data = await response.json();
       
       if (response.ok) {

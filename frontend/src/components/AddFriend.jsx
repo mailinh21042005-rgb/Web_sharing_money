@@ -19,7 +19,7 @@ function AddFriend() {
     setSearchResult(null);
     
     try {
-      const response = await fetch('http://localhost:5000/api/users/search', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/users/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ searchQuery: searchQuery.trim() })
@@ -51,7 +51,7 @@ function AddFriend() {
     if (!currentUserId) return alert("Vui lòng đăng nhập trước!");
 
     try {
-      const response = await fetch('http://localhost:5000/api/friends/add', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/friends/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: currentUserId, friend_id: searchResult.id, sender_name: storedUser.ten})

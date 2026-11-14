@@ -34,7 +34,7 @@ function ForgotPassword() {
 
     try {
       // Kiểm tra sđt tồn tại chưa
-      const checkRes = await fetch("http://localhost:5000/api/check-phone", {
+      const checkRes = await fetch("https://web-sharing-money.onrender.com/api/check-phone", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dienthoai: phone }),
@@ -89,7 +89,7 @@ function ForgotPassword() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/reset-password", {
+      const response = await fetch("https://web-sharing-money.onrender.com/api/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dienthoai: phone, newPassword }),

@@ -18,7 +18,7 @@ function ManageGroup({ onGroupCreated }) {
     const fetchFriends = async () => {
       if (!currentUserId) return;
       try {
-        const response = await fetch(`http://localhost:5000/api/friends/${currentUserId}`);
+        const response = await fetch(`https://web-sharing-money.onrender.com/api/friends/${currentUserId}`);
         const data = await response.json();
         if (response.ok) {
           setFriends(data);
@@ -38,7 +38,7 @@ function ManageGroup({ onGroupCreated }) {
     if (!currentUserId) return alert("Vui lòng đăng nhập trước!");
     
     try {
-      const response = await fetch('http://localhost:5000/api/groups/create', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/groups/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ group_name: groupName, created_by: currentUserId })
@@ -69,7 +69,7 @@ function ManageGroup({ onGroupCreated }) {
     if (!currentGroupId) return alert("Vui lòng tạo nhóm trước!");
     
     try {
-      const response = await fetch('http://localhost:5000/api/groups/add-member', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/groups/add-member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ group_id: currentGroupId, user_id: friend.id })

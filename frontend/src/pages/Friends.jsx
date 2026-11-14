@@ -13,7 +13,7 @@ function Friends() {
     if (!currentUserId) return;
     setIsLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/friends/${currentUserId}`);
+      const response = await fetch(`https://web-sharing-money.onrender.com/api/friends/${currentUserId}`);
       if (response.ok) {
         const data = await response.json();
         setFriends(data);
@@ -33,7 +33,7 @@ function Friends() {
     if (!confirm(`Bạn có chắc chắn muốn hủy kết bạn với ${friendName}?`)) return;
     
     try {
-      const response = await fetch('http://localhost:5000/api/friends/remove', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/friends/remove', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: currentUserId, friend_id: friendId })

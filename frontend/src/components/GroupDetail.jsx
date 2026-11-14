@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
 // Khởi tạo kết nối Socket ngoài component để tránh render lại nhiều lần
-const socket = io("http://localhost:5000");
+const socket = io("https://web-sharing-money.onrender.com");
 
 function GroupDetail({ group, onClose, onGroupUpdated }) {
   const [viewMode, setViewMode] = useState("chat"); // 'chat' hoặc 'settings'
@@ -30,7 +30,7 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
     socket.emit("joinGroup", group.id);
 
     // 2. Kéo tin nhắn cũ từ Database
-    fetch(`http://localhost:5000/api/groups/${group.id}/messages`)
+    fetch(`https://web-sharing-money.onrender.com/api/groups/${group.id}/messages`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -60,11 +60,11 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
       if (!currentUserId || viewMode !== "settings") return;
       try {
         // Lấy danh sách bạn bè
-        const friendsRes = await fetch(`http://localhost:5000/api/friends/${currentUserId}`);
+        const friendsRes = await fetch(`https://web-sharing-money.onrender.com/api/friends/${currentUserId}`);
         if (friendsRes.ok) setFriends(await friendsRes.json());
 
         // Lấy danh sách thành viên từ Database
-        const membersRes = await fetch(`http://localhost:5000/api/groups/${group.id}/members`);
+        const membersRes = await fetch(`https://web-sharing-money.onrender.com/api/groups/${group.id}/members`);
         if (membersRes.ok) {
           const membersData = await membersRes.json();
           
@@ -103,7 +103,7 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
   // Xử lý quản lý nhóm: thêm/xóa thành viên, giải tán nhóm
   const handleAddMember = async (friend) => {
     try {
-      const response = await fetch('http://localhost:5000/api/groups/add-member', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/groups/add-member', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ group_id: group.id, user_id: friend.id })
@@ -122,7 +122,7 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
   const handleRemoveMember = async (memberId, memberName) => {
     if (!confirm(`Bạn có chắc muốn xóa ${memberName} khỏi nhóm?`)) return;
     try {
-      const response = await fetch('http://localhost:5000/api/groups/remove-member', {
+      const response = await fetch('https://web-sharing-money.onrender.com/api/groups/remove-member', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ group_id: group.id, user_id: memberId })
@@ -139,7 +139,7 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
   const handleDeleteGroup = async () => {
     if (!confirm("Cảnh báo: Bạn có chắc chắn muốn giải tán nhóm này không? Toàn bộ dữ liệu sẽ bị xóa.")) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/groups/${group.id}`, {
+      const response = await fetch(`https://web-sharing-money.onrender.com/api/groups/${group.id}`, {
         method: 'DELETE'
       });
       if (!response.ok) throw new Error("Lỗi khi giải tán nhóm");

@@ -10,7 +10,10 @@ const http = require('http');
 const { Server } = require('socket.io');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+    origin: ["http://localhost:5173", "https://web-sharing-money.vercel.app"], 
+    credentials: true
+}));
 app.use(express.json());
 
 connectDB();
@@ -20,7 +23,11 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const server = http.createServer(app); 
 const io = new Server(server, {
-    cors: { origin: "*" }
+    cors: { 
+        origin: ["http://localhost:5173", "https://web-sharing-money.vercel.app"],
+        methods: ["GET", "POST", "PUT", "DELETE"],
+        credentials: true
+    }
 });
 
 // Middleware chèn io vào mọi Request để gọi từ API

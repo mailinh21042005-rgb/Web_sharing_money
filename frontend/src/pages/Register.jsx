@@ -90,7 +90,7 @@ function Register() {
 
     try {
       // 1. Gọi API kiểm tra trùng lặp trước
-      const checkRes = await fetch("http://localhost:5000/api/check-exists", {
+      const checkRes = await fetch("https://web-sharing-money.onrender.com/api/check-exists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -141,7 +141,7 @@ function Register() {
     try {
       // Xác thực OTP với Firebase
       await confirmationResult.confirm(otp);
-      const response = await fetch("http://localhost:5000/api/register", {
+      const response = await fetch("https://web-sharing-money.onrender.com/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
