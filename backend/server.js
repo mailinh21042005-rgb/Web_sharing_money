@@ -19,7 +19,59 @@ app.use(express.json());
 connectDB();
 
 const upload = multer({ storage: multer.memoryStorage() });
+const uploadProfileAvatar = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, callback) => {
+        if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+            return callback(new Error('Ảnh đại diện phải là tệp hình ảnh.'));
+        }
+        callback(null, true);
+    }
+});
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const JWT_SECRET = process.env.JWT_SECRET || 'sharemoney_secret_key';
+
+const authenticateToken = (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Vui lòng đăng nhập để tiếp tục.' });
+    }
+
+    try {
+        req.user = jwt.verify(authorization.slice(7), JWT_SECRET);
+        next();
+    } catch {
+        return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' });
+    }
+};
+
+let userProfilesTableReady;
+const ensureUserProfilesTable = () => {
+    if (!userProfilesTableReady) {
+        userProfilesTableReady = sql.query(`
+            IF OBJECT_ID('dbo.UserProfiles', 'U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.UserProfiles (
+                    user_id INT NOT NULL PRIMARY KEY REFERENCES dbo.Users(id),
+                    dia_chi NVARCHAR(255) NULL,
+                    is_dia_chi_public BIT NOT NULL CONSTRAINT DF_UserProfiles_IsDiaChiPublic DEFAULT 0,
+                    so_tai_khoan NVARCHAR(50) NULL,
+                    is_so_tai_khoan_public BIT NOT NULL CONSTRAINT DF_UserProfiles_IsSoTaiKhoanPublic DEFAULT 0,
+                    ngan_hang NVARCHAR(100) NULL,
+                    is_ngan_hang_public BIT NOT NULL CONSTRAINT DF_UserProfiles_IsNganHangPublic DEFAULT 0,
+                    avatar VARBINARY(MAX) NULL,
+                    avatar_mimetype VARCHAR(100) NULL,
+                    updated_at DATETIME2 NOT NULL CONSTRAINT DF_UserProfiles_UpdatedAt DEFAULT SYSUTCDATETIME()
+                );
+            END
+        `).catch((error) => {
+            userProfilesTableReady = null;
+            throw error;
+        });
+    }
+    return userProfilesTableReady;
+};
 
 const server = http.createServer(app); 
 const io = new Server(server, {
@@ -475,7 +527,7 @@ app.post('/api/login', async (req, res) => {
 
         const token = jwt.sign(
             { id: user.id, role_id: user.role_id },
-            process.env.JWT_SECRET || 'sharemoney_secret_key',
+            JWT_SECRET,
             { expiresIn: '1h' }
         );
 
@@ -488,5 +540,175 @@ app.post('/api/login', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+app.get('/api/users/profile', authenticateToken, async (req, res) => {
+    try {
+        await ensureUserProfilesTable();
+        const request = new sql.Request();
+        request.input('user_id', sql.Int, req.user.id);
+        const result = await request.query(`
+            SELECT
+                u.ten AS ten,
+                u.dienthoai AS soDienThoai,
+                COALESCE(p.dia_chi, N'') AS diaChi,
+                COALESCE(p.is_dia_chi_public, 0) AS isDiaChiPublic,
+                COALESCE(p.so_tai_khoan, N'') AS soTaiKhoan,
+                COALESCE(p.is_so_tai_khoan_public, 0) AS isSoTaiKhoanPublic,
+                COALESCE(p.ngan_hang, N'') AS nganHang,
+                COALESCE(p.is_ngan_hang_public, 0) AS isNganHangPublic,
+                p.avatar,
+                p.avatar_mimetype
+            FROM dbo.Users u
+            LEFT JOIN dbo.UserProfiles p ON p.user_id = u.id
+            WHERE u.id = @user_id
+        `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+        }
+
+        const profile = result.recordset[0];
+        const avatar = profile.avatar
+            ? `data:${profile.avatar_mimetype};base64,${profile.avatar.toString('base64')}`
+            : '';
+        delete profile.avatar;
+        delete profile.avatar_mimetype;
+        return res.status(200).json({ ...profile, avatar });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+app.put(
+    '/api/users/profile',
+    authenticateToken,
+    (req, res, next) => {
+        uploadProfileAvatar.single('avatar')(req, res, (error) => {
+            if (error) {
+                return res.status(400).json({ error: error.message });
+            }
+            next();
+        });
+    },
+    async (req, res) => {
+        try {
+            await ensureUserProfilesTable();
+
+            const {
+                ten,
+                soDienThoai,
+                diaChi,
+                isDiaChiPublic,
+                soTaiKhoan,
+                isSoTaiKhoanPublic,
+                nganHang,
+                isNganHangPublic
+            } = req.body;
+
+            if (typeof ten !== 'string' || !ten.trim() || ten.trim().length > 10) {
+                return res.status(400).json({ error: 'Tên phải có từ 1 đến 10 ký tự.' });
+            }
+            if (typeof soDienThoai !== 'string' || !/^\d{10}$/.test(soDienThoai)) {
+                return res.status(400).json({ error: 'Số điện thoại phải gồm 10 chữ số.' });
+            }
+            if (typeof diaChi !== 'string' || diaChi.length > 255) {
+                return res.status(400).json({ error: 'Địa chỉ không được vượt quá 255 ký tự.' });
+            }
+            if (typeof soTaiKhoan !== 'string' || soTaiKhoan.length > 50) {
+                return res.status(400).json({ error: 'Số tài khoản không được vượt quá 50 ký tự.' });
+            }
+            if (typeof nganHang !== 'string' || nganHang.length > 100) {
+                return res.status(400).json({ error: 'Tên ngân hàng không được vượt quá 100 ký tự.' });
+            }
+
+            const userId = Number(req.user.id);
+            const userExists = await new sql.Request()
+                .input('user_id', sql.Int, userId)
+                .query('SELECT id FROM dbo.Users WHERE id = @user_id');
+            if (userExists.recordset.length === 0) {
+                return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
+            }
+
+            const duplicatePhone = await new sql.Request()
+                .input('user_id', sql.Int, userId)
+                .input('phone', sql.Char(10), soDienThoai)
+                .query('SELECT id FROM dbo.Users WHERE dienthoai = @phone AND id <> @user_id');
+            if (duplicatePhone.recordset.length > 0) {
+                return res.status(409).json({ error: 'Số điện thoại này đã được tài khoản khác sử dụng.' });
+            }
+
+            const request = new sql.Request();
+            request.input('user_id', sql.Int, userId);
+            request.input('ten', sql.NVarChar(10), ten.trim());
+            request.input('phone', sql.Char(10), soDienThoai);
+            request.input('dia_chi', sql.NVarChar(255), diaChi.trim());
+            request.input('is_dia_chi_public', sql.Bit, isDiaChiPublic === 'true');
+            request.input('so_tai_khoan', sql.NVarChar(50), soTaiKhoan.trim());
+            request.input('is_so_tai_khoan_public', sql.Bit, isSoTaiKhoanPublic === 'true');
+            request.input('ngan_hang', sql.NVarChar(100), nganHang.trim());
+            request.input('is_ngan_hang_public', sql.Bit, isNganHangPublic === 'true');
+            request.input('avatar', sql.VarBinary(sql.MAX), req.file ? req.file.buffer : null);
+            request.input('avatar_mimetype', sql.VarChar(100), req.file ? req.file.mimetype : null);
+
+            const updateResult = await request.query(`
+                SET XACT_ABORT ON;
+                BEGIN TRANSACTION;
+                BEGIN TRY
+                    UPDATE dbo.Users
+                    SET ten = @ten, dienthoai = @phone
+                    WHERE id = @user_id;
+
+                    IF EXISTS (SELECT 1 FROM dbo.UserProfiles WHERE user_id = @user_id)
+                        UPDATE dbo.UserProfiles
+                        SET dia_chi = @dia_chi,
+                            is_dia_chi_public = @is_dia_chi_public,
+                            so_tai_khoan = @so_tai_khoan,
+                            is_so_tai_khoan_public = @is_so_tai_khoan_public,
+                            ngan_hang = @ngan_hang,
+                            is_ngan_hang_public = @is_ngan_hang_public,
+                            avatar = COALESCE(@avatar, avatar),
+                            avatar_mimetype = COALESCE(@avatar_mimetype, avatar_mimetype),
+                            updated_at = SYSUTCDATETIME()
+                        WHERE user_id = @user_id;
+                    ELSE
+                        INSERT INTO dbo.UserProfiles (
+                            user_id, dia_chi, is_dia_chi_public, so_tai_khoan,
+                            is_so_tai_khoan_public, ngan_hang, is_ngan_hang_public,
+                            avatar, avatar_mimetype
+                        )
+                        VALUES (
+                            @user_id, @dia_chi, @is_dia_chi_public, @so_tai_khoan,
+                            @is_so_tai_khoan_public, @ngan_hang, @is_ngan_hang_public,
+                            @avatar, @avatar_mimetype
+                        );
+
+                    COMMIT TRANSACTION;
+                END TRY
+                BEGIN CATCH
+                    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                    THROW;
+                END CATCH;
+
+                SELECT @ten AS ten, @phone AS soDienThoai;
+            `);
+
+            const avatar = req.file
+                ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
+                : undefined;
+            return res.status(200).json({
+                message: 'Đã lưu thông tin cá nhân.',
+                ten: updateResult.recordset[0].ten,
+                soDienThoai: updateResult.recordset[0].soDienThoai,
+                ...(avatar ? { avatar } : {})
+            });
+        } catch (error) {
+            const status = error.number === 2627 || error.number === 2601 ? 409 : 500;
+            const message = status === 409
+                ? 'Số điện thoại này đã được tài khoản khác sử dụng.'
+                : error.message;
+            return res.status(status).json({ error: message });
+        }
+    }
+);
 
 server.listen(PORT, () => console.log(`Server chạy tại http://localhost:${PORT}`));

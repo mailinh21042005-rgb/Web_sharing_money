@@ -10,6 +10,7 @@ import ScanBill from "./pages/ScanBill";
 import BackButton from "./components/BackButton";
 import Notifications from "./pages/Notifications";
 import Friends from "./pages/Friends";
+import Profile from "./pages/Profile";
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
             <Route path="/scan-bill" element={<ScanBill />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/friends" element={<Friends />} />
+            <Route path="/profile" element={<Profile />} />
           </Routes>
         </main>
       </div>

@@ -169,6 +169,13 @@ function Navbar() {
                 >
                   🤝 Bạn bè
                 </Link>
+                <Link
+                  to="/profile"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="block w-full px-4 py-3 text-left text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface-soft)]"
+                  >
+                    👤 Thông tin cá nhân
+                  </Link>
                 <div className="mx-4 my-1 h-px bg-[var(--border)]"></div>
                 <button 
                   onClick={handleLogout} 
