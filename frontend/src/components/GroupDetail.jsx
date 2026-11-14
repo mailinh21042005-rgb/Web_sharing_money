@@ -137,15 +137,23 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
   };
 
   const handleDeleteGroup = async () => {
-    if (!confirm("Cảnh báo: Bạn có chắc chắn muốn giải tán nhóm này không? Toàn bộ dữ liệu sẽ bị xóa.")) return;
+    // 1. Kiểm tra quyền admin
+    const currentUserMember = members.find(m => m.id === currentUserId);
+    if (!currentUserMember || currentUserMember.role !== 'admin') {
+        alert("Bạn không có quyền giải tán nhóm này!");
+        return;
+    }
+
+    if (!confirm("Cảnh báo: Bạn có chắc chắn muốn giải tán nhóm này không? Toàn bộ dữ liệu chat và thành viên sẽ bị xóa.")) return;
+    
     try {
-      const response = await fetch(`https://web-sharing-money.onrender.com/api/groups/${group.id}`, {
+      const response = await fetch(`http://localhost:5000/api/groups/${group.id}`, {
         method: 'DELETE'
       });
       if (!response.ok) throw new Error("Lỗi khi giải tán nhóm");
       
       alert("Đã giải tán nhóm thành công!");
-      onGroupUpdated();
+      onGroupUpdated(); // Gọi hàm cập nhật lại danh sách nhóm ở trang cha
       onClose(); // Đóng modal
     } catch (err) {
       alert(err.message);
@@ -286,10 +294,12 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
             </div>
           </div>
 
-          {/* Xóa nhóm */}
-          <button onClick={handleDeleteGroup} className="w-full rounded-xl border border-[var(--danger)] py-3 text-sm font-semibold text-[var(--danger)] hover:bg-[var(--danger-soft)] transition">
-            Giải tán nhóm
-          </button>
+          {/* Xóa nhóm (Chỉ hiển thị cho admin) */}
+          {members.find(m => m.id === currentUserId)?.role === 'admin' && (
+            <button onClick={handleDeleteGroup} className="w-full rounded-xl border border-[var(--danger)] py-3 text-sm font-semibold text-[var(--danger)] hover:bg-[var(--danger-soft)] transition mt-6">
+              Giải tán nhóm
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -77,7 +77,7 @@ io.on('connection', (socket) => {
             // 1. Gửi nội dung tin nhắn đến khung chat của nhóm
             io.to(`group_${group_id}`).emit('receiveMessage', newMessage);
 
-            // 2. BỔ SUNG: Gửi tín hiệu thông báo (newNotification) tới các thành viên khác trong nhóm
+            // 2. Gửi tín hiệu thông báo (newNotification) tới các thành viên khác trong nhóm
             const memberReq = new sql.Request();
             memberReq.input('group_id', sql.Int, group_id);
             memberReq.input('sender_id', sql.Int, user_id);
@@ -309,17 +309,27 @@ app.delete('/api/groups/remove-member', async (req, res) => {
     }
 });
 
-// Giải tán nhóm
+// API: Giải tán nhóm (Chỉ Admin mới được xóa)
 app.delete('/api/groups/:groupId', async (req, res) => {
     try {
         const { groupId } = req.params;
         const request = new sql.Request();
         request.input('group_id', sql.Int, groupId);
-        
-        await request.query(`DELETE FROM Groups WHERE id = @group_id`);
+
+        // Phải xóa dữ liệu ở các bảng con trước để tránh lỗi ràng buộc khóa ngoại (Foreign Key)
+        await request.query(`
+            DELETE FROM ChatMessages WHERE group_id = @group_id;
+            DELETE FROM GroupMembers WHERE group_id = @group_id;
+            -- Thêm lệnh xóa các bảng khác liên quan đến nhóm nếu có (VD: Debts, Transactions...)
+            -- DELETE FROM Transactions WHERE group_id = @group_id;
+            
+            DELETE FROM Groups WHERE id = @group_id;
+        `);
+
         res.status(200).json({ message: "Đã giải tán nhóm thành công!" });
     } catch (error) {
-        res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
+        console.error("Lỗi khi giải tán nhóm:", error);
+        res.status(500).json({ error: "Lỗi hệ thống khi giải tán nhóm" });
     }
 });
 
