@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 const API_URL = "https://web-sharing-money.onrender.com/api/users/profile";
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
 const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-      
+
 const emptyProfile = {
   username: "",
   hoVaTen: "",
@@ -46,11 +46,17 @@ function Profile() {
 
         const fullNames = [data.hodem, data.tenlot, data.ten].filter(Boolean).join(" ");
         
-        setFormData({
-          ...emptyProfile,
+        setFormData({ 
+          ...emptyProfile, 
           ...data,
           hoVaTen: fullNames || data.ten || ""
         });
+
+        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        if (data.avatar && currentUser.avatar !== data.avatar) {
+          localStorage.setItem("user", JSON.stringify({ ...currentUser, avatar: data.avatar }));
+          window.dispatchEvent(new Event("storage")); 
+        }
         if (data.avatar) setPreviewAvatar(data.avatar);
 
       } catch (loadError) {
@@ -77,7 +83,7 @@ function Profile() {
   };
 
   const handleUploadClick = () => {
-    if (!isEditing) return;
+    if (!isEditing) return; 
     fileInputRef.current?.click();
   };
 
@@ -146,17 +152,23 @@ function Profile() {
       const shortName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : "";
 
       const user = JSON.parse(localStorage.getItem("user") || "{}");
-      localStorage.setItem("user", JSON.stringify({
+      const updatedUser = {
         ...user,
         ten: shortName,
         dienthoai: formData.soDienThoai.trim(),
-      }));
+      };
+      
+      if (data.avatar) {
+        updatedUser.avatar = data.avatar;
+      } else if (formData.avatar) {
+        updatedUser.avatar = formData.avatar;
+      }
 
-      if (data.avatar) setPreviewAvatar(data.avatar);
-      setAvatarFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      window.dispatchEvent(new Event("userUpdated")); // Bắn tín hiệu để Navbar cập nhật ngay lập tức
+
       setSuccess("Đã lưu thông tin cá nhân thành công.");
-      setIsEditing(false);
+      setIsEditing(false); 
 
     } catch (saveError) {
       setError(saveError.message);
@@ -233,7 +245,7 @@ function Profile() {
               <p className="mt-1 text-sm text-[var(--text-muted)]">
                 {isEditing
                   ? "Nhấn vào ảnh để thay đổi (tối đa 2 MB)."
-                  : "Ảnh đại diện"}
+                  : ""}
               </p>
               <input
                 ref={fileInputRef}

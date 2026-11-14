@@ -160,13 +160,25 @@ app.get('/api/groups/:groupId/messages', async (req, res) => {
         const request = new sql.Request();
         request.input('group_id', sql.Int, req.params.groupId);
         const result = await request.query(`
-            SELECT c.id, c.user_id, c.message as text, c.created_at, u.ten as sender
+            SELECT c.id, c.user_id, c.message as text, c.created_at, u.ten as sender, p.avatar, p.avatar_mimetype
             FROM ChatMessages c
             JOIN Users u ON c.user_id = u.id
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
             WHERE c.group_id = @group_id
             ORDER BY c.created_at ASC
         `);
-        res.status(200).json(result.recordset);
+        const messages = result.recordset.map(msg => {
+            const avatarBase64 = msg.avatar ? `data:${msg.avatar_mimetype};base64,${msg.avatar.toString('base64')}` : null;
+            return {
+                id: msg.id,
+                user_id: msg.user_id,
+                text: msg.text,
+                created_at: msg.created_at,
+                sender: msg.sender,
+                avatar: avatarBase64 || msg.sender.charAt(0).toUpperCase()
+            };
+        });
+        res.status(200).json(messages);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -353,13 +365,21 @@ app.get('/api/friends/:userId', async (req, res) => {
         request.input('user_id', sql.Int, userId);
         
         const result = await request.query(`
-            SELECT u.id, u.ten as name
+            SELECT u.id, u.ten as name, p.avatar, p.avatar_mimetype
             FROM Users u
             INNER JOIN Friends f ON u.id = f.friend_id
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
             WHERE f.user_id = @user_id AND f.status = 'accepted' 
         `);
         
-        const friendsList = result.recordset.map(f => ({ id: f.id, name: f.name, avatar: f.name.charAt(0).toUpperCase() }));
+        const friendsList = result.recordset.map(f => {
+            const avatarBase64 = f.avatar ? `data:${f.avatar_mimetype};base64,${f.avatar.toString('base64')}` : null;
+            return { 
+                id: f.id, 
+                name: f.name, 
+                avatar: avatarBase64 || f.name.charAt(0).toUpperCase() 
+            };
+        });
         res.status(200).json(friendsList);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -369,45 +389,31 @@ app.get('/api/friends/:userId', async (req, res) => {
 // [API QUAN TRỌNG] Lấy danh sách nhóm kèm trạng thái chấm đỏ từ DB
 app.get('/api/users/:userId/groups', async (req, res) => {
     try {
-        const { userId } = req.params;
+        const { groupId } = req.params;
         const request = new sql.Request();
-        request.input('user_id', sql.Int, userId);
+        request.input('group_id', sql.Int, groupId);
         
         const result = await request.query(`
-            SELECT 
-                g.id, 
-                g.name,
-                (
-                    SELECT STRING_AGG(u.ten, ',') 
-                    FROM GroupMembers gm2 
-                    JOIN Users u ON gm2.user_id = u.id 
-                    WHERE gm2.group_id = g.id
-                ) as member_names,
-                (
-                    SELECT CASE 
-                        WHEN MAX(c.created_at) IS NOT NULL AND (gm.last_read_at IS NULL OR MAX(c.created_at) > gm.last_read_at) THEN 1
-                        ELSE 0
-                    END
-                    FROM ChatMessages c
-                    WHERE c.group_id = g.id
-                ) as has_unread
-            FROM Groups g
-            JOIN GroupMembers gm ON g.id = gm.group_id
-            WHERE gm.user_id = @user_id
+            SELECT u.id, u.ten as name, gm.role, p.avatar, p.avatar_mimetype
+            FROM GroupMembers gm
+            JOIN Users u ON gm.user_id = u.id
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
+            WHERE gm.group_id = @group_id
         `);
         
-        const formattedGroups = result.recordset.map(group => ({
-            id: group.id,
-            name: group.name,
-            members: group.member_names ? group.member_names.split(',') : [],
-            transaction_count: 0, 
-            total_amount: 0,
-            hasUnread: group.has_unread === 1
-        }));
+        const membersList = result.recordset.map(m => {
+            const avatarBase64 = m.avatar ? `data:${m.avatar_mimetype};base64,${m.avatar.toString('base64')}` : null;
+            return {
+                id: m.id, 
+                name: m.name, 
+                role: m.role, 
+                avatar: avatarBase64 || m.name.charAt(0).toUpperCase()
+            };
+        });
 
-        res.status(200).json(formattedGroups);
+        res.status(200).json(membersList);
     } catch (error) {
-        res.status(500).json({ error: "Lỗi lấy danh sách nhóm: " + error.message });
+        res.status(500).json({ error: "Lỗi lấy danh sách thành viên: " + error.message });
     }
 });
 
@@ -519,7 +525,12 @@ app.post('/api/login', async (req, res) => {
         const { username, password } = req.body;
         const request = new sql.Request();
         request.input('username', sql.VarChar(50), username);
-        const result = await request.query(`SELECT * FROM Users WHERE username = @username`);
+        const result = await request.query(`
+            SELECT u.*, p.avatar, p.avatar_mimetype 
+            FROM Users u
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
+            WHERE u.username = @username
+        `);
 
         if (result.recordset.length === 0) return res.status(401).json({ error: "Không tồn tại!" });
         const user = result.recordset[0];
@@ -531,10 +542,19 @@ app.post('/api/login', async (req, res) => {
             { expiresIn: '1h' }
         );
 
+        const avatarBase64 = user.avatar
+            ? `data:${user.avatar_mimetype};base64,${user.avatar.toString('base64')}`
+            : undefined;
+
         res.status(200).json({
             message: "Đăng nhập thành công!",
             token,
-            user: { id: user.id, ten: user.ten, username: user.username }
+            user: { 
+                id: user.id, 
+                ten: user.ten, 
+                username: user.username,
+                ...(avatarBase64 ? { avatar: avatarBase64 } : {}) // Kẹp thêm avatar vào để trả về Frontend
+            }
         });
     } catch (error) {
         res.status(500).json({ error: error.message });

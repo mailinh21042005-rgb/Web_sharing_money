@@ -52,6 +52,18 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Cập nhật user
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        setUser(JSON.parse(userStr));
+      }
+    };
+    window.addEventListener("userUpdated", handleUserUpdated);
+    return () => window.removeEventListener("userUpdated", handleUserUpdated);
+  }, []);
+
   const userName = user?.ten || "";
   const isLoggedIn = Boolean(user);
 
@@ -119,8 +131,12 @@ function Navbar() {
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-2 transition hover:opacity-80 focus:outline-none sm:gap-3"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm">
-                {avatarLetter}
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] font-semibold text-[var(--avatar-text)] shadow-sm border border-gray-200">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="h-full w-full object-cover" />
+                ) : (
+                  avatarLetter
+                )}
               </div>
               <span className="hidden text-sm font-medium text-[var(--text)] sm:block whitespace-nowrap max-w-[100px] truncate">
                 {userName}
