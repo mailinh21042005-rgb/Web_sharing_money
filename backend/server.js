@@ -389,31 +389,45 @@ app.get('/api/friends/:userId', async (req, res) => {
 // [API QUAN TRỌNG] Lấy danh sách nhóm kèm trạng thái chấm đỏ từ DB
 app.get('/api/users/:userId/groups', async (req, res) => {
     try {
-        const { groupId } = req.params;
+        const { userId } = req.params;
         const request = new sql.Request();
-        request.input('group_id', sql.Int, groupId);
+        request.input('user_id', sql.Int, userId);
         
         const result = await request.query(`
-            SELECT u.id, u.ten as name, gm.role, p.avatar, p.avatar_mimetype
-            FROM GroupMembers gm
-            JOIN Users u ON gm.user_id = u.id
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE gm.group_id = @group_id
+            SELECT 
+                g.id, 
+                g.name,
+                (
+                    SELECT STRING_AGG(u.ten, ',') 
+                    FROM GroupMembers gm2 
+                    JOIN Users u ON gm2.user_id = u.id 
+                    WHERE gm2.group_id = g.id
+                ) as member_names,
+                (
+                    SELECT CASE 
+                        WHEN MAX(c.created_at) IS NOT NULL AND (gm.last_read_at IS NULL OR MAX(c.created_at) > gm.last_read_at) THEN 1
+                        ELSE 0
+                    END
+                    FROM ChatMessages c
+                    WHERE c.group_id = g.id
+                ) as has_unread
+            FROM Groups g
+            JOIN GroupMembers gm ON g.id = gm.group_id
+            WHERE gm.user_id = @user_id
         `);
         
-        const membersList = result.recordset.map(m => {
-            const avatarBase64 = m.avatar ? `data:${m.avatar_mimetype};base64,${m.avatar.toString('base64')}` : null;
-            return {
-                id: m.id, 
-                name: m.name, 
-                role: m.role, 
-                avatar: avatarBase64 || m.name.charAt(0).toUpperCase()
-            };
-        });
+        const formattedGroups = result.recordset.map(group => ({
+            id: group.id,
+            name: group.name,
+            members: group.member_names ? group.member_names.split(',') : [],
+            transaction_count: 0, 
+            total_amount: 0,
+            hasUnread: group.has_unread === 1
+        }));
 
-        res.status(200).json(membersList);
+        res.status(200).json(formattedGroups);
     } catch (error) {
-        res.status(500).json({ error: "Lỗi lấy danh sách thành viên: " + error.message });
+        res.status(500).json({ error: "Lỗi lấy danh sách nhóm: " + error.message });
     }
 });
 
@@ -444,15 +458,22 @@ app.get('/api/groups/:groupId/members', async (req, res) => {
         request.input('group_id', sql.Int, groupId);
         
         const result = await request.query(`
-            SELECT u.id, u.ten as name, gm.role 
+            SELECT u.id, u.ten as name, gm.role, p.avatar, p.avatar_mimetype
             FROM GroupMembers gm
             JOIN Users u ON gm.user_id = u.id
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
             WHERE gm.group_id = @group_id
         `);
         
-        const membersList = result.recordset.map(m => ({
-            id: m.id, name: m.name, role: m.role, avatar: m.name.charAt(0).toUpperCase()
-        }));
+        const membersList = result.recordset.map(m => {
+            const avatarBase64 = m.avatar ? `data:${m.avatar_mimetype};base64,${m.avatar.toString('base64')}` : null;
+            return {
+                id: m.id, 
+                name: m.name, 
+                role: m.role, 
+                avatar: avatarBase64 || m.name.charAt(0).toUpperCase()
+            };
+        });
         res.status(200).json(membersList);
     } catch (error) {
         res.status(500).json({ error: error.message });
