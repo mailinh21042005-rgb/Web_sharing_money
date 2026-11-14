@@ -12,24 +12,20 @@ function MyGroups() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null); 
   const [refreshTrigger, setRefreshTrigger] = useState(0); 
-  
-  // State lưu trạng thái thông báo: { [groupId]: 'unread' | 'read' }
-  const [notifStatus, setNotifStatus] = useState({});
 
   const storedUser = JSON.parse(localStorage.getItem('user'));
   const currentUserId = storedUser ? storedUser.id : null;
 
-  // Nhận thông báo tin nhắn mới từ mọi nhóm
+  // Nhận thông báo tin nhắn mới từ nhóm qua Socket
   useEffect(() => {
     if (!currentUserId) return;
     
     const handleNewGroupMessage = (newMsg) => {
-      // Nếu nhóm CÓ tin nhắn mới KHÔNG PHẢI là nhóm đang mở, đổi trạng thái thành chưa đọc (đỏ)
+      // Bật chấm đỏ lên nếu tin nhắn rơi vào nhóm mà bạn ĐANG KHÔNG MỞ
       if (!selectedGroup || selectedGroup.id !== newMsg.group_id) {
-        setNotifStatus(prev => ({
-          ...prev, 
-          [newMsg.group_id]: 'unread'
-        }));
+        setGroups(prevGroups => prevGroups.map(g =>
+          g.id === newMsg.group_id ? { ...g, hasUnread: true } : g
+        ));
       }
     };
     
@@ -40,7 +36,7 @@ function MyGroups() {
     };
   }, [currentUserId, selectedGroup]);
 
-  // Khai báo hàm fetch data
+  // Lấy dữ liệu danh sách nhóm (Đã chứa sẵn thuộc tính hasUnread từ Backend)
   const fetchMyGroups = useCallback(async () => {
     if (!currentUserId) {
       setIsLoading(false);
@@ -51,10 +47,7 @@ function MyGroups() {
     try {
       const response = await fetch(`https://web-sharing-money.onrender.com/api/users/${currentUserId}/groups`);
       const data = await response.json();
-      
-      if (response.ok) {
-        setGroups(data);
-      }
+      if (response.ok) setGroups(data);
     } catch (error) {
       console.error("Lỗi khi tải danh sách nhóm:", error);
     } finally {
@@ -62,7 +55,6 @@ function MyGroups() {
     }
   }, [currentUserId]);
 
-  // Tự động fetch data
   useEffect(() => {
     fetchMyGroups();
   }, [fetchMyGroups, refreshTrigger]);
@@ -71,19 +63,30 @@ function MyGroups() {
     setRefreshTrigger(prev => prev + 1); 
   };
 
-  // Xử lý khi bấm mở nhóm
-  const handleGroupClick = (group) => {
+  // Xử lý khi bấm vào 1 nhóm để xem
+  const handleGroupClick = async (group) => {
     setSelectedGroup(group);
     
-    // Đổi trạng thái từ 'unread' (chưa đọc) sang 'read' (đã đọc)
-    if (notifStatus[group.id] === 'unread') {
-      setNotifStatus(prev => ({
-        ...prev,
-        [group.id]: 'read'
-      }));
+    // Nếu nhóm đang có chấm đỏ chưa đọc
+    if (group.hasUnread) {
+      // 1. Chuyển chấm sang xanh lục ngay lập tức trên màn hình
+      setGroups(prevGroups => prevGroups.map(g =>
+        g.id === group.id ? { ...g, hasUnread: false } : g
+      ));
+      
+      // 2. Bắn API báo cho DB biết bạn đã đọc tin nhắn
+      try {
+        await fetch(`https://web-sharing-money.onrender.com/api/groups/${group.id}/read`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: currentUserId })
+        });
+      } catch (error) {
+        console.error("Lỗi cập nhật trạng thái đọc:", error);
+      }
     }
     
-    // GỬI TÍN HIỆU TẮT CHẤM ĐỎ LÊN THANH NAVBAR
+    // 3. Xóa thông báo nháy trên thanh Navbar
     window.dispatchEvent(new Event("clearNavbarNotif"));
   };
 
@@ -124,35 +127,28 @@ function MyGroups() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => {
-            const status = notifStatus[group.id];
-
-            return (
-              <div 
-                key={group.id} 
-                onClick={() => handleGroupClick(group)} 
-                className="cursor-pointer relative"
-              >
-                {/* Chấm thông báo Đỏ (Chưa đọc) - Đã bỏ animate-ping */}
-                {status === 'unread' && (
-                  <span className="absolute -right-1 -top-1 z-10 h-4 w-4 rounded-full bg-[var(--danger)] border-2 border-[var(--background)] shadow-sm"></span>
-                )}
-                
-                {/* Chấm thông báo Xanh (Đã đọc) */}
-                {status === 'read' && (
-                  <span className="absolute -right-1 -top-1 z-10 h-4 w-4 rounded-full bg-[var(--success)] border-2 border-[var(--background)] shadow-sm"></span>
-                )}
-                
-                <GroupCard 
-                  icon="👥" 
-                  name={group.name} 
-                  transactions={group.transaction_count || 0} 
-                  amount={`₫${group.total_amount || 0}`} 
-                  members={group.members ? group.members.map(m => m.charAt(0).toUpperCase()) : ["?"]} 
-                />
-              </div>
-            );
-          })}
+          {groups.map((group) => (
+            <div 
+              key={group.id} 
+              onClick={() => handleGroupClick(group)} 
+              className="cursor-pointer relative"
+            >
+              {/* Logic Chấm màu Dựa Vào DB */}
+              {group.hasUnread ? (
+                <span className="absolute -right-1 -top-1 z-10 h-4 w-4 rounded-full bg-[var(--danger)] border-2 border-[var(--background)] shadow-sm"></span>
+              ) : (
+                <span className="absolute -right-1 -top-1 z-10 h-4 w-4 rounded-full bg-[var(--success)] border-2 border-[var(--background)] shadow-sm"></span>
+              )}
+              
+              <GroupCard 
+                icon="👥" 
+                name={group.name} 
+                transactions={group.transaction_count || 0} 
+                amount={`₫${group.total_amount || 0}`} 
+                members={group.members ? group.members.map(m => m.charAt(0).toUpperCase()) : ["?"]} 
+              />
+            </div>
+          ))}
         </div>
       )}
 
