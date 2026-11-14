@@ -28,10 +28,7 @@
 ## 🛠 Hướng dẫn sử dụng trước khi dùng
 
 *   Thực hiện pull code mới nhất về máy.
-*   Sau khi pull, mở Terminal và thực hiện cd tới vị trí thư mục Web_sharing_money/backend
-*   Thực hiện chạy lệnh node server.js
-    **Ví dụ:** <img width="573" height="97" alt="image" src="https://github.com/user-attachments/assets/2fc62511-e29e-4f5e-ab91-b847501cba85" />
-*   Mở một Terminal mới và thực hiện cd tới vị trí thư mục Web_sharing_money/frontend
+*   Sau khi pull, mở Terminal và thực hiện cd tới vị trí thư mục Web_sharing_money/frontend
 *   Sau đó thực hiện chạy lệnh npm run dev
     **Ví dụ** <img width="622" height="233" alt="image" src="https://github.com/user-attachments/assets/3e2a11e5-d37d-4dcc-a68d-38d52eb27556" />
 
