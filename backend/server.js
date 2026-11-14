@@ -489,28 +489,4 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-app.post('/api/check-phone', async (req, res) => {
-    try {
-        const check = await new sql.Request().input('dienthoai', sql.Char, req.body.dienthoai).query(`SELECT id FROM Users WHERE dienthoai = @dienthoai`);
-        if (check.recordset.length === 0) return res.status(404).json({ error: "Chưa đăng ký!" });
-        res.status(200).json({ message: "OK" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/reset-password', async (req, res) => {
-    try {
-        const salt = await bcrypt.genSalt(10);
-        const password_hash = await bcrypt.hash(req.body.newPassword, salt);
-        await new sql.Request()
-            .input('dienthoai', sql.Char, req.body.dienthoai)
-            .input('password', sql.VarChar, password_hash)
-            .query(`UPDATE Users SET password_hash = @password WHERE dienthoai = @dienthoai`);
-        res.status(200).json({ message: "OK" });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
 server.listen(PORT, () => console.log(`Server chạy tại http://localhost:${PORT}`));

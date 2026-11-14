@@ -8,12 +8,11 @@
 
 *   **Xây dựng hệ thống đăng ký và đăng nhập tài khoản:**
     *   Yêu cầu người dùng nếu chưa có tài khoản thì sẽ phải đăng ký tài khoản.
-    *   Việc đăng ký sẽ được liên kết thông qua Firebase để có thể gửi OTP xác thực qua tin nhắn SMS (https://console.firebase.google.com/u/0/project/web-sharing-money)
+    *   Khi đăng ký, hệ thống kiểm tra trùng tên đăng nhập/số điện thoại rồi tạo tài khoản. Hiện không xác thực số điện thoại bằng OTP.
       - Nếu tài khoản mới được đăng ký sử dụng số điện thoại/email/tên đăng nhập trùng với tài khoản đã có thì sẽ thông báo bị trùng thông tin.
-      - Nếu trong quá trình đăng nhập mà không nhớ mật khẩu thì sẽ có tính năng **_Quên mật khẩu_** để người dùng đặt lại mật khẩu.
+      - Tính năng **_Quên mật khẩu_** hiện tạm thời không khả dụng cho đến khi có quy trình xác minh an toàn khác.
     *   Khi thực hiện đăng nhập sẽ cập nhật lại tên user và avt theo chữ cái đầu trong tên người đó.
 *   **Bảo mật & Xử lý Dữ liệu:**
-    *   Chuẩn hóa số điện thoại tự động sang đầu số quốc tế (`+84`) trước khi gửi lên Firebase.
     *   Mã hóa mật khẩu bằng `bcrypt` an toàn trước khi lưu vào cơ sở dữ liệu.
 *   **Cơ sở dữ liệu đám mây:**
     *   Sử dụng **Azure SQL Database** giúp các thành viên trong nhóm làm việc với nhau.
@@ -37,10 +36,9 @@
     * src
       * pages
         * Dashboard.jsx: thể hiện thông tin hiện trên giao diện chính (cả trước khi đăng nhập và sau khi đăng nhập).
-        * ForgotPassword.jsx: cập nhật logic để người dùng tạo lại mật khẩu khi bấm vào _**Quên mật khẩu**_
+        * ForgotPassword.jsx: thông báo tính năng khôi phục mật khẩu tạm thời không khả dụng.
         * Login.jsx: thực hiện cơ chế đăng nhập bao gồm nhập các thông tin người dùng và mật khẩu.
-        * Register.jsx: thực hiện cơ chế đăng ký (bao gồm các trường thông tin Họ đệm, Tên lót, Tên, Tên đăng nhập, Password) và nhập mã OTP vừa được gửi xác thực tới điện thoại.
-      * firebase.js: thể hiện các thông tin trong cơ chế tường lửa (mở source để xem chi tiết).
+        * Register.jsx: thực hiện đăng ký tài khoản và kiểm tra trùng tên đăng nhập/số điện thoại.
 *   Backend:
     * db.js: để khởi tạo kết nối với Azure SQL.
     * server.js: xây dựng hệ thống api cho việc kiểm tra hoạt động, đăng ký, trùng tài khoản, đăng nhập).
