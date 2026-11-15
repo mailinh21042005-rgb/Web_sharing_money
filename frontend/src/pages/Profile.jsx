@@ -7,7 +7,9 @@ const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 const emptyProfile = {
   username: "",
-  hoVaTen: "",
+  hodem: "",
+  tenlot: "",
+  ten: "",
   soDienThoai: "",
   diaChi: "",
   isDiaChiPublic: false,
@@ -44,12 +46,12 @@ function Profile() {
         if (!response.ok) throw new Error("Không thể tải thông tin cá nhân.");
         const data = await response.json();
 
-        const fullNames = [data.hodem, data.tenlot, data.ten].filter(Boolean).join(" ");
-        
         setFormData({ 
           ...emptyProfile, 
           ...data,
-          hoVaTen: fullNames || data.ten || ""
+          hodem: data.hodem || "",
+          tenlot: data.tenlot || "",
+          ten: data.ten || ""
         });
 
         const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
@@ -135,7 +137,9 @@ function Profile() {
       if (!token) throw new Error("Vui lòng đăng nhập lại để lưu thông tin.");
       const body = new FormData();
       
-      body.append("hoVaTen", formData.hoVaTen.trim());
+      body.append("hodem", formData.hodem.trim());
+      body.append("tenlot", formData.tenlot.trim());
+      body.append("ten", formData.ten.trim());
       body.append("soDienThoai", formData.soDienThoai.trim());
       body.append("diaChi", formData.diaChi.trim());
       body.append("isDiaChiPublic", String(formData.isDiaChiPublic));
@@ -154,13 +158,10 @@ function Profile() {
 
       if (!response.ok) throw new Error(data.error || "Không thể lưu thông tin.");
 
-      const nameParts = formData.hoVaTen.trim().split(/\s+/);
-      const shortName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : "";
-
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const updatedUser = {
         ...user,
-        ten: shortName,
+        ten: formData.ten.trim(),
         dienthoai: formData.soDienThoai.trim(),
       };
       
@@ -184,11 +185,7 @@ function Profile() {
   };
 
   const getInitial = () => {
-    const parts = formData.hoVaTen.trim().split(/\s+/);
-    if (parts.length > 0 && parts[parts.length - 1]) {
-      return parts[parts.length - 1].charAt(0).toUpperCase();
-    }
-    return "U";
+    return formData.ten.trim().charAt(0).toUpperCase() || "U";
   };
 
   return (
@@ -264,20 +261,47 @@ function Profile() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <label className="block text-sm font-medium text-[var(--text)]">
-              Họ và tên
+              Họ
               <input
                 type="text"
-                name="hoVaTen"
-                value={formData.hoVaTen}
+                name="hodem"
+                value={formData.hodem}
                 onChange={handleChange}
-                maxLength={60}
+                maxLength={20}
+                disabled={!isEditing || isSaving}
+                className="mt-1 block w-full rounded-md border border-[var(--border)] bg-[var(--surface)] p-2 text-[var(--text)] disabled:opacity-70"
+              />
+            </label>
+            <label className="block text-sm font-medium text-[var(--text)]">
+              Tên lót
+              <input
+                type="text"
+                name="tenlot"
+                value={formData.tenlot}
+                onChange={handleChange}
+                maxLength={20}
+                disabled={!isEditing || isSaving}
+                className="mt-1 block w-full rounded-md border border-[var(--border)] bg-[var(--surface)] p-2 text-[var(--text)] disabled:opacity-70"
+              />
+            </label>
+            <label className="block text-sm font-medium text-[var(--text)]">
+              Tên
+              <input
+                type="text"
+                name="ten"
+                value={formData.ten}
+                onChange={handleChange}
+                maxLength={10}
                 required
                 disabled={!isEditing || isSaving}
                 className="mt-1 block w-full rounded-md border border-[var(--border)] bg-[var(--surface)] p-2 text-[var(--text)] disabled:opacity-70"
               />
             </label>
+          </div>
+
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             <label className="block text-sm font-medium text-[var(--text)]">
               Số điện thoại
               <input

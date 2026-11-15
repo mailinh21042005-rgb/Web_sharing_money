@@ -399,36 +399,54 @@ app.get('/api/users/:userId/groups', async (req, res) => {
             SELECT 
                 g.id, 
                 g.name,
-                (
-                    u.ten + '|' + ISNULL(CAST(p.avatar_mimetype AS VARCHAR(MAX)), '') + '|' + ISNULL(CAST(p.avatar AS VARCHAR(MAX)), ''), ','
-                    FROM GroupMembers gm2 
-                    JOIN Users u ON gm2.user_id = u.id 
-                    LEFT JOIN UserProfiles p ON u.id = p.user_id 
-                    WHERE gm2.group_id = g.id
-                ) as member_names,
-                (
-                    SELECT CASE 
-                        WHEN MAX(c.created_at) IS NOT NULL AND (gm.last_read_at IS NULL OR MAX(c.created_at) > gm.last_read_at) THEN 1
-                        ELSE 0
-                    END
+                u.id as member_id,
+                u.ten as member_name,
+                p.avatar,
+                p.avatar_mimetype,
+                gm2.role as member_role,
+                CASE WHEN EXISTS (
+                    SELECT 1
                     FROM ChatMessages c
                     WHERE c.group_id = g.id
-                ) as has_unread
+                      AND (gm.last_read_at IS NULL OR c.created_at > gm.last_read_at)
+                ) THEN 1 ELSE 0 END as has_unread
             FROM Groups g
             JOIN GroupMembers gm ON g.id = gm.group_id
+            LEFT JOIN GroupMembers gm2 ON g.id = gm2.group_id
+            LEFT JOIN Users u ON gm2.user_id = u.id
+            LEFT JOIN UserProfiles p ON u.id = p.user_id
             WHERE gm.user_id = @user_id
         `);
-        
-        const formattedGroups = result.recordset.map(group => ({
-            id: group.id,
-            name: group.name,
-            members: members,
-            transaction_count: 0, 
-            total_amount: 0,
-            hasUnread: group.has_unread === 1
-        }));
 
-        res.status(200).json(formattedGroups);
+        const groupsById = new Map();
+        result.recordset.forEach(row => {
+            let group = groupsById.get(row.id);
+            if (!group) {
+                group = {
+                    id: row.id,
+                    name: row.name,
+                    members: [],
+                    transaction_count: 0,
+                    total_amount: 0,
+                    hasUnread: row.has_unread === true || row.has_unread === 1
+                };
+                groupsById.set(row.id, group);
+            }
+
+            if (row.member_id !== null) {
+                const avatar = row.avatar
+                    ? `data:${row.avatar_mimetype};base64,${row.avatar.toString('base64')}`
+                    : null;
+                group.members.push({
+                    id: row.member_id,
+                    name: row.member_name,
+                    avatar,
+                    role: row.member_role
+                });
+            }
+        });
+
+        res.status(200).json(Array.from(groupsById.values()));
     } catch (error) {
         res.status(500).json({ error: "Lỗi lấy danh sách nhóm: " + error.message });
     }
@@ -641,9 +659,11 @@ app.put(
         try {
             await ensureUserProfilesTable();
 
-            // 1. Nhận hoVaTen từ Frontend thay vì ten
             const {
-                hoVaTen, 
+                hodem: submittedHodem,
+                tenlot: submittedTenlot,
+                ten: submittedTen,
+                hoVaTen,
                 soDienThoai,
                 diaChi,
                 isDiaChiPublic,
@@ -653,12 +673,18 @@ app.put(
                 isNganHangPublic
             } = req.body;
 
-            // 2. Logic cắt chuỗi Họ và Tên thành 3 phần
             let hodem = '';
             let tenlot = '';
             let ten = '';
-            
-            if (hoVaTen && typeof hoVaTen === 'string') {
+
+            const hasSeparateName = [submittedHodem, submittedTenlot, submittedTen]
+                .some(value => typeof value === 'string');
+
+            if (hasSeparateName) {
+                hodem = typeof submittedHodem === 'string' ? submittedHodem.trim() : '';
+                tenlot = typeof submittedTenlot === 'string' ? submittedTenlot.trim() : '';
+                ten = typeof submittedTen === 'string' ? submittedTen.trim() : '';
+            } else if (hoVaTen && typeof hoVaTen === 'string') {
                 const parts = hoVaTen.trim().split(/\s+/);
                 if (parts.length === 1) {
                     ten = parts[0];
@@ -672,9 +698,11 @@ app.put(
                 }
             }
 
-            // 3. Validate dữ liệu (Đã sửa lại để không báo lỗi sai)
             if (!ten || ten.length > 10) {
                 return res.status(400).json({ error: 'Tên (từ cuối cùng) không được để trống hoặc vượt quá 10 ký tự.' });
+            }
+            if (hodem.length > 20 || tenlot.length > 20) {
+                return res.status(400).json({ error: 'Họ và tên lót không được vượt quá 20 ký tự.' });
             }
             if (typeof soDienThoai !== 'string' || !/^\d{10}$/.test(soDienThoai)) {
                 return res.status(400).json({ error: 'Số điện thoại phải gồm 10 chữ số.' });
@@ -708,9 +736,9 @@ app.put(
 
             const request = new sql.Request();
             request.input('user_id', sql.Int, userId);
-            request.input('hodem', sql.NVarChar(20), hodem.substring(0, 20));
-            request.input('tenlot', sql.NVarChar(20), tenlot.substring(0, 20));
-            request.input('ten', sql.NVarChar(10), ten.substring(0, 10));
+            request.input('hodem', sql.NVarChar(20), hodem);
+            request.input('tenlot', sql.NVarChar(20), tenlot);
+            request.input('ten', sql.NVarChar(10), ten);
             request.input('phone', sql.Char(10), soDienThoai);
             request.input('dia_chi', sql.NVarChar(255), diaChi.trim());
             request.input('is_dia_chi_public', sql.Bit, isDiaChiPublic === 'true');
