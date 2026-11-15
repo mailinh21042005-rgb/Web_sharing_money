@@ -659,9 +659,11 @@ app.put(
         try {
             await ensureUserProfilesTable();
 
-            // 1. Nhận hoVaTen từ Frontend thay vì ten
             const {
-                hoVaTen, 
+                hodem: submittedHodem,
+                tenlot: submittedTenlot,
+                ten: submittedTen,
+                hoVaTen,
                 soDienThoai,
                 diaChi,
                 isDiaChiPublic,
@@ -671,12 +673,18 @@ app.put(
                 isNganHangPublic
             } = req.body;
 
-            // 2. Logic cắt chuỗi Họ và Tên thành 3 phần
             let hodem = '';
             let tenlot = '';
             let ten = '';
-            
-            if (hoVaTen && typeof hoVaTen === 'string') {
+
+            const hasSeparateName = [submittedHodem, submittedTenlot, submittedTen]
+                .some(value => typeof value === 'string');
+
+            if (hasSeparateName) {
+                hodem = typeof submittedHodem === 'string' ? submittedHodem.trim() : '';
+                tenlot = typeof submittedTenlot === 'string' ? submittedTenlot.trim() : '';
+                ten = typeof submittedTen === 'string' ? submittedTen.trim() : '';
+            } else if (hoVaTen && typeof hoVaTen === 'string') {
                 const parts = hoVaTen.trim().split(/\s+/);
                 if (parts.length === 1) {
                     ten = parts[0];
@@ -690,9 +698,11 @@ app.put(
                 }
             }
 
-            // 3. Validate dữ liệu (Đã sửa lại để không báo lỗi sai)
             if (!ten || ten.length > 10) {
                 return res.status(400).json({ error: 'Tên (từ cuối cùng) không được để trống hoặc vượt quá 10 ký tự.' });
+            }
+            if (hodem.length > 20 || tenlot.length > 20) {
+                return res.status(400).json({ error: 'Họ và tên lót không được vượt quá 20 ký tự.' });
             }
             if (typeof soDienThoai !== 'string' || !/^\d{10}$/.test(soDienThoai)) {
                 return res.status(400).json({ error: 'Số điện thoại phải gồm 10 chữ số.' });
@@ -726,9 +736,9 @@ app.put(
 
             const request = new sql.Request();
             request.input('user_id', sql.Int, userId);
-            request.input('hodem', sql.NVarChar(20), hodem.substring(0, 20));
-            request.input('tenlot', sql.NVarChar(20), tenlot.substring(0, 20));
-            request.input('ten', sql.NVarChar(10), ten.substring(0, 10));
+            request.input('hodem', sql.NVarChar(20), hodem);
+            request.input('tenlot', sql.NVarChar(20), tenlot);
+            request.input('ten', sql.NVarChar(10), ten);
             request.input('phone', sql.Char(10), soDienThoai);
             request.input('dia_chi', sql.NVarChar(255), diaChi.trim());
             request.input('is_dia_chi_public', sql.Bit, isDiaChiPublic === 'true');
