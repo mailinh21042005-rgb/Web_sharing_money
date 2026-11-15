@@ -9,6 +9,7 @@ const socket = io("https://web-sharing-money.onrender.com");
 function MyGroups() {
   const [groups, setGroups] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState(null); 
   const [refreshTrigger, setRefreshTrigger] = useState(0); 
@@ -44,12 +45,20 @@ function MyGroups() {
     }
     
     setIsLoading(true);
+    setLoadError("");
     try {
       const response = await fetch(`https://web-sharing-money.onrender.com/api/users/${currentUserId}/groups`);
       const data = await response.json();
-      if (response.ok) setGroups(data);
+      if (!response.ok) {
+        throw new Error(data.error || "Không thể tải danh sách nhóm.");
+      }
+      if (!Array.isArray(data)) {
+        throw new Error("Dữ liệu danh sách nhóm không hợp lệ.");
+      }
+      setGroups(data);
     } catch (error) {
       console.error("Lỗi khi tải danh sách nhóm:", error);
+      setLoadError(error.message || "Không thể tải danh sách nhóm.");
     } finally {
       setIsLoading(false);
     }
@@ -119,6 +128,10 @@ function MyGroups() {
 
       {isLoading ? (
         <div className="py-20 text-center text-[var(--text-muted)]">Đang tải danh sách nhóm...</div>
+      ) : loadError ? (
+        <div role="alert" className="rounded-3xl border border-[var(--danger)] bg-[var(--surface)] py-12 text-center text-[var(--danger)]">
+          {loadError}
+        </div>
       ) : groups.length === 0 ? (
         <div className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] py-20 text-center">
           <div className="text-4xl mb-4">👥</div>
