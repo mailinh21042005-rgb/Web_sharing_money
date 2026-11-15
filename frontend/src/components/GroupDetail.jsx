@@ -147,10 +147,11 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
     if (!confirm("Cảnh báo: Bạn có chắc chắn muốn giải tán nhóm này không? Toàn bộ dữ liệu chat và thành viên sẽ bị xóa.")) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/groups/${group.id}`, {
+      const response = await fetch(`https://web-sharing-money.onrender.com/api/groups/${group.id}`, {
         method: 'DELETE'
       });
-      if (!response.ok) throw new Error("Lỗi khi giải tán nhóm");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Lỗi khi giải tán nhóm");
       
       alert("Đã giải tán nhóm thành công!");
       onGroupUpdated(); // Gọi hàm cập nhật lại danh sách nhóm ở trang cha

@@ -356,7 +356,8 @@ app.delete('/api/groups/:groupId', async (req, res) => {
         `);
         res.status(200).json({ message: "Đã giải tán nhóm!" });
     } catch (error) {
-        res.status(500).json({ error: "Lỗi hệ thống" });
+        console.error("Lỗi giải tán nhóm:", error);
+        res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
     }
 });
 
