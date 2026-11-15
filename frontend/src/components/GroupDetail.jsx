@@ -91,8 +91,7 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
       group_id: group.id,
       user_id: currentUserId,
       message: message.trim(),
-      sender_name: storedUser.ten,
-      avatar: storedUser.ten.charAt(0).toUpperCase()
+      sender_name: storedUser.ten
     };
 
     // Phát tin nhắn qua Socket
@@ -196,8 +195,12 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
                 <div key={msg.id || index} className={`flex w-full ${isMe ? "justify-end" : "justify-start"}`}>
                   {/* Avatar người gửi (Chỉ hiện nếu KHÔNG phải là mình) */}
                   {!isMe && (
-                    <div className="mr-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--avatar-background)] text-xs font-bold text-[var(--avatar-text)] mt-auto mb-5 shadow-sm">
-                      {msg.avatar || (msg.sender ? msg.sender.charAt(0).toUpperCase() : "U")}
+                    <div className="mr-2 mt-auto mb-5 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] text-xs font-bold text-[var(--avatar-text)] shadow-sm">
+                      {typeof msg.avatar === "string" && msg.avatar.startsWith("data:image") ? (
+                        <img src={msg.avatar} alt={msg.sender || "Ảnh đại diện"} className="h-full w-full object-cover" />
+                      ) : (
+                        msg.avatar || (msg.sender ? msg.sender.charAt(0).toUpperCase() : "U")
+                      )}
                     </div>
                   )}
 
@@ -284,7 +287,13 @@ function GroupDetail({ group, onClose, onGroupUpdated }) {
               {members.map(m => (
                 <div key={m.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-[var(--avatar-background)] flex items-center justify-center text-xs font-bold text-[var(--avatar-text)]">{m.avatar}</div>
+                    <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[var(--avatar-background)] text-xs font-bold text-[var(--avatar-text)]">
+                      {typeof m.avatar === "string" && m.avatar.startsWith("data:image") ? (
+                        <img src={m.avatar} alt={m.name || "Ảnh đại diện"} className="h-full w-full object-cover" />
+                      ) : (
+                        m.avatar || (m.name ? m.name.charAt(0).toUpperCase() : "U")
+                      )}
+                    </div>
                     <span className="text-sm text-[var(--text)]">{m.name} {m.role === 'admin' && '(Admin)'}</span>
                   </div>
                   {m.role !== 'admin' && (
