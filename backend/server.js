@@ -99,7 +99,22 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', async (data) => {
         try {
-            const { group_id, user_id, message, sender_name, avatar } = data;
+            const { group_id, user_id, message, sender_name } = data;
+
+            const profileReq = new sql.Request();
+            profileReq.input('user_id', sql.Int, user_id);
+            const profileResult = await profileReq.query(`
+                SELECT u.ten AS sender, p.avatar, p.avatar_mimetype
+                FROM Users u
+                LEFT JOIN UserProfiles p ON u.id = p.user_id
+                WHERE u.id = @user_id
+            `);
+            const senderProfile = profileResult.recordset[0];
+            if (!senderProfile) throw new Error('Không tìm thấy người gửi tin nhắn.');
+
+            const avatar = senderProfile.avatar
+                ? `data:${senderProfile.avatar_mimetype};base64,${senderProfile.avatar.toString('base64')}`
+                : senderProfile.sender.charAt(0).toUpperCase();
             
             const request = new sql.Request();
             request.input('group_id', sql.Int, group_id);
@@ -121,7 +136,7 @@ io.on('connection', (socket) => {
                 id: result.recordset[0].id,
                 group_id,
                 user_id,
-                sender: sender_name,
+                sender: senderProfile.sender,
                 avatar,
                 text: message,
                 created_at: result.recordset[0].created_at
@@ -140,7 +155,7 @@ io.on('connection', (socket) => {
 
             members.recordset.forEach(member => {
                 io.to(`user_${member.user_id}`).emit('newNotification', { 
-                    message: `${sender_name || 'Ai đó'} đã gửi tin nhắn mới trong nhóm.` 
+                    message: `${senderProfile.sender || sender_name || 'Ai đó'} đã gửi tin nhắn mới trong nhóm.`
                 });
             });
 
