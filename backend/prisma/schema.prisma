@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Nếu máy bạn cài Prisma 6 thì bỏ comment dòng dưới; Prisma 7 đã cấu hình sẵn trong prisma.config.ts nên giữ nguyên
+  // url      = env("DATABASE_URL")
+}
+
+model Role {
+  id        Int    @id @default(autoincrement())
+  role_name String @db.VarChar(50)
+  users     User[]
+
+  @@map("Roles")
+}
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  hodem              String   @db.VarChar(20)
+  tenlot             String?  @db.VarChar(20)
+  ten                String   @db.VarChar(10)
+  username           String   @unique @db.VarChar(50)
+  email              String   @unique @db.VarChar(50)
+  dienthoai          String?  @db.VarChar(10)
+  password_hash      String
+  role_id            Int      @default(2)
+  avatar             String?
+  diaChi             String?  @db.VarChar(255)
+  isDiaChiPublic     Boolean  @default(false)
+  soTaiKhoan         String?  @db.VarChar(50)
+  isSoTaiKhoanPublic Boolean  @default(false)
+  nganHang           String?  @db.VarChar(100)
+  isNganHangPublic   Boolean  @default(false)
+
+  role            Role          @relation(fields: [role_id], references: [id])
+  createdGroups   Group[]       @relation("GroupCreator")
+  groupMembers    GroupMember[]
+  sentFriends     Friend[]      @relation("UserFriends")
+  receivedFriends Friend[]      @relation("FriendOf")
+  chatMessages    ChatMessage[]
+
+  @@map("Users")
+}
+
+model Group {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  created_by Int
+  created_at DateTime @default(now())
+
+  creator  User          @relation("GroupCreator", fields: [created_by], references: [id])
+  members  GroupMember[]
+  messages ChatMessage[]
+
+  @@map("Groups")
+}
+
+model GroupMember {
+  group_id     Int
+  user_id      Int
+  role         String    @default("member") @db.VarChar(20)
+  joined_at    DateTime  @default(now())
+  last_read_at DateTime?
+
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id])
+
+  @@id([group_id, user_id])
+  @@map("GroupMembers")
+}
+
+model Friend {
+  user_id    Int
+  friend_id  Int
+  status     String   @default("pending") @db.VarChar(20)
+  created_at DateTime @default(now())
+
+  user   User @relation("UserFriends", fields: [user_id], references: [id])
+  friend User @relation("FriendOf", fields: [friend_id], references: [id])
+
+  @@id([user_id, friend_id])
+  @@map("Friends")
+}
+
+model ChatMessage {
+  id         Int      @id @default(autoincrement())
+  group_id   Int
+  user_id    Int
+  message    String
+  created_at DateTime @default(now())
+
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id])
+
+  @@map("ChatMessages")
+}
