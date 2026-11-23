@@ -1,22 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { connectDB, sql } = require('./db');
+const prisma = require('./db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
-const { GoogleGenAI, Type } = require('@google/genai');
-const http = require('http'); 
+const { GoogleGenAI } = require('@google/genai');
+const http = require('http');
 const { Server } = require('socket.io');
 
 const app = express();
 app.use(cors({
-    origin: ["http://localhost:5173", "https://web-sharing-money.vercel.app"], 
+    origin: ["http://localhost:5173", "https://web-sharing-money.vercel.app"],
     credentials: true
 }));
 app.use(express.json());
-
-connectDB();
 
 const upload = multer({ storage: multer.memoryStorage() });
 const uploadProfileAvatar = multer({
@@ -29,8 +27,14 @@ const uploadProfileAvatar = multer({
         callback(null, true);
     }
 });
+
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const JWT_SECRET = process.env.JWT_SECRET || 'sharemoney_secret_key';
+
+const toAvatarDataUrl = (avatar, mimetype) => {
+    if (!avatar || !mimetype) return null;
+    return `data:${mimetype};base64,${Buffer.from(avatar).toString('base64')}`;
+};
 
 const authenticateToken = (req, res, next) => {
     const authorization = req.headers.authorization;
@@ -46,36 +50,9 @@ const authenticateToken = (req, res, next) => {
     }
 };
 
-let userProfilesTableReady;
-const ensureUserProfilesTable = () => {
-    if (!userProfilesTableReady) {
-        userProfilesTableReady = sql.query(`
-            IF OBJECT_ID('dbo.UserProfiles', 'U') IS NULL
-            BEGIN
-                CREATE TABLE dbo.UserProfiles (
-                    user_id INT NOT NULL PRIMARY KEY REFERENCES dbo.Users(id),
-                    dia_chi NVARCHAR(255) NULL,
-                    is_dia_chi_public BIT NOT NULL CONSTRAINT DF_UserProfiles_IsDiaChiPublic DEFAULT 0,
-                    so_tai_khoan NVARCHAR(50) NULL,
-                    is_so_tai_khoan_public BIT NOT NULL CONSTRAINT DF_UserProfiles_IsSoTaiKhoanPublic DEFAULT 0,
-                    ngan_hang NVARCHAR(100) NULL,
-                    is_ngan_hang_public BIT NOT NULL CONSTRAINT DF_UserProfiles_IsNganHangPublic DEFAULT 0,
-                    avatar VARBINARY(MAX) NULL,
-                    avatar_mimetype VARCHAR(100) NULL,
-                    updated_at DATETIME2 NOT NULL CONSTRAINT DF_UserProfiles_UpdatedAt DEFAULT SYSUTCDATETIME()
-                );
-            END
-        `).catch((error) => {
-            userProfilesTableReady = null;
-            throw error;
-        });
-    }
-    return userProfilesTableReady;
-};
-
-const server = http.createServer(app); 
+const server = http.createServer(app);
 const io = new Server(server, {
-    cors: { 
+    cors: {
         origin: ["http://localhost:5173", "https://web-sharing-money.vercel.app"],
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true
@@ -99,66 +76,60 @@ io.on('connection', (socket) => {
 
     socket.on('sendMessage', async (data) => {
         try {
-            const { group_id, user_id, message, sender_name } = data;
+            const groupId = Number(data.group_id);
+            const userId = Number(data.user_id);
+            const { message, sender_name } = data;
 
-            const profileReq = new sql.Request();
-            profileReq.input('user_id', sql.Int, user_id);
-            const profileResult = await profileReq.query(`
-                SELECT u.ten AS sender, p.avatar, p.avatar_mimetype
-                FROM Users u
-                LEFT JOIN UserProfiles p ON u.id = p.user_id
-                WHERE u.id = @user_id
-            `);
-            const senderProfile = profileResult.recordset[0];
+            const senderProfile = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { profile: true }
+            });
             if (!senderProfile) throw new Error('Không tìm thấy người gửi tin nhắn.');
 
-            const avatar = senderProfile.avatar
-                ? `data:${senderProfile.avatar_mimetype};base64,${senderProfile.avatar.toString('base64')}`
-                : senderProfile.sender.charAt(0).toUpperCase();
-            
-            const request = new sql.Request();
-            request.input('group_id', sql.Int, group_id);
-            request.input('user_id', sql.Int, user_id);
-            request.input('message', sql.NVarChar(sql.MAX), message);
-            
+            const avatar =
+                toAvatarDataUrl(senderProfile.profile?.avatar, senderProfile.profile?.avatar_mimetype) ||
+                senderProfile.ten.charAt(0).toUpperCase();
+
             // Lưu tin nhắn VÀ cập nhật người gửi đã đọc tin nhắn cuối
-            const result = await request.query(`
-                INSERT INTO ChatMessages (group_id, user_id, message) 
-                OUTPUT inserted.id, inserted.created_at
-                VALUES (@group_id, @user_id, @message);
-                
-                UPDATE GroupMembers 
-                SET last_read_at = GETDATE() 
-                WHERE group_id = @group_id AND user_id = @user_id;
-            `);
+            const [savedMsg] = await prisma.$transaction([
+                prisma.chatMessage.create({
+                    data: {
+                        group_id: groupId,
+                        user_id: userId,
+                        message
+                    }
+                }),
+                prisma.groupMember.updateMany({
+                    where: { group_id: groupId, user_id: userId },
+                    data: { last_read_at: new Date() }
+                })
+            ]);
 
             const newMessage = {
-                id: result.recordset[0].id,
-                group_id,
-                user_id,
-                sender: senderProfile.sender,
+                id: savedMsg.id,
+                group_id: groupId,
+                user_id: userId,
+                sender: senderProfile.ten,
                 avatar,
                 text: message,
-                created_at: result.recordset[0].created_at
+                created_at: savedMsg.created_at
             };
 
-            io.to(`group_${group_id}`).emit('receiveMessage', newMessage);
+            io.to(`group_${groupId}`).emit('receiveMessage', newMessage);
 
-            const memberReq = new sql.Request();
-            memberReq.input('group_id', sql.Int, group_id);
-            memberReq.input('sender_id', sql.Int, user_id);
-            
-            const members = await memberReq.query(`
-                SELECT user_id FROM GroupMembers 
-                WHERE group_id = @group_id AND user_id != @sender_id
-            `);
-
-            members.recordset.forEach(member => {
-                io.to(`user_${member.user_id}`).emit('newNotification', { 
-                    message: `${senderProfile.sender || sender_name || 'Ai đó'} đã gửi tin nhắn mới trong nhóm.`
-                });
+            const members = await prisma.groupMember.findMany({
+                where: {
+                    group_id: groupId,
+                    user_id: { not: userId }
+                },
+                select: { user_id: true }
             });
 
+            members.forEach((member) => {
+                io.to(`user_${member.user_id}`).emit('newNotification', {
+                    message: `${senderProfile.ten || sender_name || 'Ai đó'} đã gửi tin nhắn mới trong nhóm.`
+                });
+            });
         } catch (err) {
             console.error("Lỗi lưu tin nhắn:", err);
         }
@@ -172,27 +143,26 @@ const PORT = process.env.PORT || 5000;
 // [CHAT] Lấy lịch sử tin nhắn
 app.get('/api/groups/:groupId/messages', async (req, res) => {
     try {
-        const request = new sql.Request();
-        request.input('group_id', sql.Int, req.params.groupId);
-        const result = await request.query(`
-            SELECT c.id, c.user_id, c.message as text, c.created_at, u.ten as sender, p.avatar, p.avatar_mimetype
-            FROM ChatMessages c
-            JOIN Users u ON c.user_id = u.id
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE c.group_id = @group_id
-            ORDER BY c.created_at ASC
-        `);
-        const messages = result.recordset.map(msg => {
-            const avatarBase64 = msg.avatar ? `data:${msg.avatar_mimetype};base64,${msg.avatar.toString('base64')}` : null;
-            return {
-                id: msg.id,
-                user_id: msg.user_id,
-                text: msg.text,
-                created_at: msg.created_at,
-                sender: msg.sender,
-                avatar: avatarBase64 || msg.sender.charAt(0).toUpperCase()
-            };
+        const groupId = Number(req.params.groupId);
+        const rows = await prisma.chatMessage.findMany({
+            where: { group_id: groupId },
+            include: {
+                user: { include: { profile: true } }
+            },
+            orderBy: { created_at: 'asc' }
         });
+
+        const messages = rows.map((msg) => ({
+            id: msg.id,
+            user_id: msg.user_id,
+            text: msg.message,
+            created_at: msg.created_at,
+            sender: msg.user.ten,
+            avatar:
+                toAvatarDataUrl(msg.user.profile?.avatar, msg.user.profile?.avatar_mimetype) ||
+                msg.user.ten.charAt(0).toUpperCase()
+        }));
+
         res.status(200).json(messages);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -202,20 +172,36 @@ app.get('/api/groups/:groupId/messages', async (req, res) => {
 // [THÔNG BÁO] Lấy danh sách kết bạn
 app.get('/api/notifications/:userId', async (req, res) => {
     try {
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, req.params.userId);
-        
-        await request.query(`DELETE FROM Friends WHERE created_at < DATEADD(DAY, -30, GETDATE())`);
+        const userId = Number(req.params.userId);
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-        const result = await request.query(`
-            SELECT f.user_id as sender_id, u.ten, u.hodem, u.tenlot, f.created_at, f.status, p.avatar, p.avatar_mimetype   
-            FROM Friends f
-            JOIN Users u ON f.user_id = u.id
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE f.friend_id = @user_id AND (f.status = 'pending' OR f.status = 'accepted')
-            ORDER BY f.created_at DESC
-        `);
-        res.status(200).json(result.recordset);
+        await prisma.friend.deleteMany({
+            where: { created_at: { lt: thirtyDaysAgo } }
+        });
+
+        const rows = await prisma.friend.findMany({
+            where: {
+                friend_id: userId,
+                status: { in: ['pending', 'accepted'] }
+            },
+            include: {
+                user: { include: { profile: true } }
+            },
+            orderBy: { created_at: 'desc' }
+        });
+
+        const result = rows.map((f) => ({
+            sender_id: f.user_id,
+            ten: f.user.ten,
+            hodem: f.user.hodem,
+            tenlot: f.user.tenlot,
+            created_at: f.created_at,
+            status: f.status,
+            avatar: f.user.profile?.avatar ? Buffer.from(f.user.profile.avatar) : null,
+            avatar_mimetype: f.user.profile?.avatar_mimetype ?? null
+        }));
+
+        res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -227,18 +213,25 @@ app.post('/api/users/search', async (req, res) => {
         const { searchQuery } = req.body;
         if (!searchQuery) return res.status(400).json({ error: "Vui lòng nhập thông tin tìm kiếm" });
 
-        const request = new sql.Request();
-        request.input('query', sql.VarChar(50), searchQuery);
-        
-        const result = await request.query(`
-            SELECT id, ten, hodem, tenlot, dienthoai, username, p.avatar, p.avatar_mimetype
-            FROM Users 
-            LEFT JOIN UserProfiles p ON Users.id = p.user_id
-            WHERE dienthoai = @query OR username = @query
-        `);
+        const user = await prisma.user.findFirst({
+            where: {
+                OR: [{ dienthoai: searchQuery }, { username: searchQuery }]
+            },
+            include: { profile: true }
+        });
 
-        if (result.recordset.length === 0) return res.status(404).json({ error: "Không tìm thấy người dùng!" });
-        res.status(200).json(result.recordset[0]);
+        if (!user) return res.status(404).json({ error: "Không tìm thấy người dùng!" });
+
+        res.status(200).json({
+            id: user.id,
+            ten: user.ten,
+            hodem: user.hodem,
+            tenlot: user.tenlot,
+            dienthoai: user.dienthoai,
+            username: user.username,
+            avatar: user.profile?.avatar ? Buffer.from(user.profile.avatar) : null,
+            avatar_mimetype: user.profile?.avatar_mimetype ?? null
+        });
     } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
     }
@@ -246,18 +239,23 @@ app.post('/api/users/search', async (req, res) => {
 
 app.post('/api/friends/add', async (req, res) => {
     try {
-        const { user_id, friend_id, sender_name } = req.body; 
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, user_id);
-        request.input('friend_id', sql.Int, friend_id);
-        
-        const check = await request.query(`SELECT * FROM Friends WHERE user_id = @user_id AND friend_id = @friend_id`);
-        if (check.recordset.length > 0) return res.status(400).json({ error: "Đã là bạn bè hoặc đã gửi yêu cầu!" });
+        const userId = Number(req.body.user_id);
+        const friendId = Number(req.body.friend_id);
+        const { sender_name } = req.body;
 
-        await request.query(`INSERT INTO Friends (user_id, friend_id, status) VALUES (@user_id, @friend_id, 'pending')`);
-        
-        req.io.to(`user_${friend_id}`).emit('newNotification', { 
-            message: `${sender_name || 'Ai đó'} đã gửi lời mời kết bạn!` 
+        const existing = await prisma.friend.findUnique({
+            where: {
+                user_id_friend_id: { user_id: userId, friend_id: friendId }
+            }
+        });
+        if (existing) return res.status(400).json({ error: "Đã là bạn bè hoặc đã gửi yêu cầu!" });
+
+        await prisma.friend.create({
+            data: { user_id: userId, friend_id: friendId, status: 'pending' }
+        });
+
+        req.io.to(`user_${friendId}`).emit('newNotification', {
+            message: `${sender_name || 'Ai đó'} đã gửi lời mời kết bạn!`
         });
         res.status(200).json({ message: "Đã gửi yêu cầu kết bạn!" });
     } catch (error) {
@@ -267,20 +265,33 @@ app.post('/api/friends/add', async (req, res) => {
 
 app.put('/api/friends/respond', async (req, res) => {
     try {
-        const { sender_id, receiver_id, action, responder_name } = req.body;
-        const request = new sql.Request();
-        request.input('sender', sql.Int, sender_id);
-        request.input('receiver', sql.Int, receiver_id);
+        const senderId = Number(req.body.sender_id);
+        const receiverId = Number(req.body.receiver_id);
+        const { action, responder_name } = req.body;
 
         if (action === 'accepted') {
-            await request.query(`UPDATE Friends SET status = 'accepted' WHERE user_id = @sender AND friend_id = @receiver`);
-            await request.query(`INSERT INTO Friends (user_id, friend_id, status) VALUES (@receiver, @sender, 'accepted')`);
-            req.io.to(`user_${sender_id}`).emit('newNotification', { 
-                message: `${responder_name || 'Một người bạn'} đã chấp nhận kết bạn!` 
+            await prisma.$transaction([
+                prisma.friend.updateMany({
+                    where: { user_id: senderId, friend_id: receiverId },
+                    data: { status: 'accepted' }
+                }),
+                prisma.friend.upsert({
+                    where: {
+                        user_id_friend_id: { user_id: receiverId, friend_id: senderId }
+                    },
+                    update: { status: 'accepted' },
+                    create: { user_id: receiverId, friend_id: senderId, status: 'accepted' }
+                })
+            ]);
+
+            req.io.to(`user_${senderId}`).emit('newNotification', {
+                message: `${responder_name || 'Một người bạn'} đã chấp nhận kết bạn!`
             });
             res.status(200).json({ message: "Đã chấp nhận!" });
         } else {
-            await request.query(`DELETE FROM Friends WHERE user_id = @sender AND friend_id = @receiver`);
+            await prisma.friend.deleteMany({
+                where: { user_id: senderId, friend_id: receiverId }
+            });
             res.status(200).json({ message: "Đã từ chối!" });
         }
     } catch (error) {
@@ -290,15 +301,17 @@ app.put('/api/friends/respond', async (req, res) => {
 
 app.delete('/api/friends/remove', async (req, res) => {
     try {
-        const { user_id, friend_id } = req.body;
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, user_id);
-        request.input('friend_id', sql.Int, friend_id);
-        
-        await request.query(`
-            DELETE FROM Friends 
-            WHERE (user_id = @user_id AND friend_id = @friend_id) OR (user_id = @friend_id AND friend_id = @user_id)
-        `);
+        const userId = Number(req.body.user_id);
+        const friendId = Number(req.body.friend_id);
+
+        await prisma.friend.deleteMany({
+            where: {
+                OR: [
+                    { user_id: userId, friend_id: friendId },
+                    { user_id: friendId, friend_id: userId }
+                ]
+            }
+        });
         res.status(200).json({ message: "Đã hủy kết bạn!" });
     } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
@@ -308,20 +321,20 @@ app.delete('/api/friends/remove', async (req, res) => {
 // Nhóm
 app.post('/api/groups/create', async (req, res) => {
     try {
-        const { group_name, created_by } = req.body;
-        const request = new sql.Request();
-        request.input('name', sql.NVarChar(100), group_name);
-        request.input('created_by', sql.Int, created_by);
-        
-        const result = await request.query(`INSERT INTO Groups (name, created_by) OUTPUT INSERTED.id VALUES (@name, @created_by);`);
-        const groupId = result.recordset[0].id;
-        
-        const memberReq = new sql.Request();
-        memberReq.input('group_id', sql.Int, groupId);
-        memberReq.input('user_id', sql.Int, created_by);
-        await memberReq.query(`INSERT INTO GroupMembers (group_id, user_id, role) VALUES (@group_id, @user_id, 'admin')`);
+        const { group_name } = req.body;
+        const createdBy = Number(req.body.created_by);
 
-        res.status(201).json({ message: "Tạo nhóm thành công!", groupId: groupId });
+        const group = await prisma.group.create({
+            data: {
+                name: group_name,
+                created_by: createdBy,
+                members: {
+                    create: { user_id: createdBy, role: 'admin' }
+                }
+            }
+        });
+
+        res.status(201).json({ message: "Tạo nhóm thành công!", groupId: group.id });
     } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
     }
@@ -329,15 +342,19 @@ app.post('/api/groups/create', async (req, res) => {
 
 app.post('/api/groups/add-member', async (req, res) => {
     try {
-        const { group_id, user_id } = req.body;
-        const request = new sql.Request();
-        request.input('group_id', sql.Int, group_id);
-        request.input('user_id', sql.Int, user_id);
-        
-        const check = await request.query(`SELECT * FROM GroupMembers WHERE group_id = @group_id AND user_id = @user_id`);
-        if (check.recordset.length > 0) return res.status(400).json({ error: "Người dùng này đã ở trong nhóm!" });
+        const groupId = Number(req.body.group_id);
+        const userId = Number(req.body.user_id);
 
-        await request.query(`INSERT INTO GroupMembers (group_id, user_id, role) VALUES (@group_id, @user_id, 'member')`);
+        const existing = await prisma.groupMember.findUnique({
+            where: {
+                group_id_user_id: { group_id: groupId, user_id: userId }
+            }
+        });
+        if (existing) return res.status(400).json({ error: "Người dùng này đã ở trong nhóm!" });
+
+        await prisma.groupMember.create({
+            data: { group_id: groupId, user_id: userId, role: 'member' }
+        });
         res.status(200).json({ message: "Đã thêm thành viên!" });
     } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
@@ -346,12 +363,12 @@ app.post('/api/groups/add-member', async (req, res) => {
 
 app.delete('/api/groups/remove-member', async (req, res) => {
     try {
-        const { group_id, user_id } = req.body;
-        const request = new sql.Request();
-        request.input('group_id', sql.Int, group_id);
-        request.input('user_id', sql.Int, user_id);
-        
-        await request.query(`DELETE FROM GroupMembers WHERE group_id = @group_id AND user_id = @user_id`);
+        const groupId = Number(req.body.group_id);
+        const userId = Number(req.body.user_id);
+
+        await prisma.groupMember.deleteMany({
+            where: { group_id: groupId, user_id: userId }
+        });
         res.status(200).json({ message: "Đã xóa thành viên!" });
     } catch (error) {
         res.status(500).json({ error: "Lỗi hệ thống: " + error.message });
@@ -360,15 +377,13 @@ app.delete('/api/groups/remove-member', async (req, res) => {
 
 app.delete('/api/groups/:groupId', async (req, res) => {
     try {
-        const { groupId } = req.params;
-        const request = new sql.Request();
-        request.input('group_id', sql.Int, groupId);
+        const groupId = Number(req.params.groupId);
 
-        await request.query(`
-            DELETE FROM ChatMessages WHERE group_id = @group_id;
-            DELETE FROM GroupMembers WHERE group_id = @group_id;
-            DELETE FROM Groups WHERE id = @group_id;
-        `);
+        await prisma.$transaction([
+            prisma.chatMessage.deleteMany({ where: { group_id: groupId } }),
+            prisma.groupMember.deleteMany({ where: { group_id: groupId } }),
+            prisma.group.deleteMany({ where: { id: groupId } })
+        ]);
         res.status(200).json({ message: "Đã giải tán nhóm!" });
     } catch (error) {
         console.error("Lỗi giải tán nhóm:", error);
@@ -378,26 +393,22 @@ app.delete('/api/groups/:groupId', async (req, res) => {
 
 app.get('/api/friends/:userId', async (req, res) => {
     try {
-        const { userId } = req.params;
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, userId);
-        
-        const result = await request.query(`
-            SELECT u.id, u.ten as name, p.avatar, p.avatar_mimetype
-            FROM Users u
-            INNER JOIN Friends f ON u.id = f.friend_id
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE f.user_id = @user_id AND f.status = 'accepted' 
-        `);
-        
-        const friendsList = result.recordset.map(f => {
-            const avatarBase64 = f.avatar ? `data:${f.avatar_mimetype};base64,${f.avatar.toString('base64')}` : null;
-            return { 
-                id: f.id, 
-                name: f.name, 
-                avatar: avatarBase64 || f.name.charAt(0).toUpperCase() 
-            };
+        const userId = Number(req.params.userId);
+        const rows = await prisma.friend.findMany({
+            where: { user_id: userId, status: 'accepted' },
+            include: {
+                friend: { include: { profile: true } }
+            }
         });
+
+        const friendsList = rows.map((f) => ({
+            id: f.friend.id,
+            name: f.friend.ten,
+            avatar:
+                toAvatarDataUrl(f.friend.profile?.avatar, f.friend.profile?.avatar_mimetype) ||
+                f.friend.ten.charAt(0).toUpperCase()
+        }));
+
         res.status(200).json(friendsList);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -407,62 +418,49 @@ app.get('/api/friends/:userId', async (req, res) => {
 // [API QUAN TRỌNG] Lấy danh sách nhóm kèm trạng thái chấm đỏ từ DB
 app.get('/api/users/:userId/groups', async (req, res) => {
     try {
-        const { userId } = req.params;
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, userId);
-        
-        const result = await request.query(`
-            SELECT 
-                g.id, 
-                g.name,
-                u.id as member_id,
-                u.ten as member_name,
-                p.avatar,
-                p.avatar_mimetype,
-                gm2.role as member_role,
-                CASE WHEN EXISTS (
-                    SELECT 1
-                    FROM ChatMessages c
-                    WHERE c.group_id = g.id
-                      AND (gm.last_read_at IS NULL OR c.created_at > gm.last_read_at)
-                ) THEN 1 ELSE 0 END as has_unread
-            FROM Groups g
-            JOIN GroupMembers gm ON g.id = gm.group_id
-            LEFT JOIN GroupMembers gm2 ON g.id = gm2.group_id
-            LEFT JOIN Users u ON gm2.user_id = u.id
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE gm.user_id = @user_id
-        `);
-
-        const groupsById = new Map();
-        result.recordset.forEach(row => {
-            let group = groupsById.get(row.id);
-            if (!group) {
-                group = {
-                    id: row.id,
-                    name: row.name,
-                    members: [],
-                    transaction_count: 0,
-                    total_amount: 0,
-                    hasUnread: row.has_unread === true || row.has_unread === 1
-                };
-                groupsById.set(row.id, group);
-            }
-
-            if (row.member_id !== null) {
-                const avatar = row.avatar
-                    ? `data:${row.avatar_mimetype};base64,${row.avatar.toString('base64')}`
-                    : null;
-                group.members.push({
-                    id: row.member_id,
-                    name: row.member_name,
-                    avatar,
-                    role: row.member_role
-                });
+        const userId = Number(req.params.userId);
+        const memberships = await prisma.groupMember.findMany({
+            where: { user_id: userId },
+            include: {
+                group: {
+                    include: {
+                        members: {
+                            include: {
+                                user: { include: { profile: true } }
+                            }
+                        },
+                        messages: {
+                            orderBy: { created_at: 'desc' },
+                            take: 1,
+                            select: { created_at: true }
+                        }
+                    }
+                }
             }
         });
 
-        res.status(200).json(Array.from(groupsById.values()));
+        const groups = memberships.map((gm) => {
+            const latestMsg = gm.group.messages[0];
+            const hasUnread = Boolean(
+                latestMsg && (!gm.last_read_at || latestMsg.created_at > gm.last_read_at)
+            );
+
+            return {
+                id: gm.group.id,
+                name: gm.group.name,
+                members: gm.group.members.map((m) => ({
+                    id: m.user.id,
+                    name: m.user.ten,
+                    avatar: toAvatarDataUrl(m.user.profile?.avatar, m.user.profile?.avatar_mimetype),
+                    role: m.role
+                })),
+                transaction_count: 0,
+                total_amount: 0,
+                hasUnread
+            };
+        });
+
+        res.status(200).json(groups);
     } catch (error) {
         res.status(500).json({ error: "Lỗi lấy danh sách nhóm: " + error.message });
     }
@@ -471,17 +469,13 @@ app.get('/api/users/:userId/groups', async (req, res) => {
 // [API QUAN TRỌNG MỚI] Ghi nhận đã xem tin nhắn
 app.put('/api/groups/:groupId/read', async (req, res) => {
     try {
-        const { groupId } = req.params;
-        const { user_id } = req.body;
-        const request = new sql.Request();
-        request.input('group_id', sql.Int, groupId);
-        request.input('user_id', sql.Int, user_id);
+        const groupId = Number(req.params.groupId);
+        const userId = Number(req.body.user_id);
 
-        await request.query(`
-            UPDATE GroupMembers
-            SET last_read_at = GETDATE()
-            WHERE group_id = @group_id AND user_id = @user_id
-        `);
+        await prisma.groupMember.updateMany({
+            where: { group_id: groupId, user_id: userId },
+            data: { last_read_at: new Date() }
+        });
         res.status(200).json({ message: "Đã cập nhật trạng thái đọc" });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -490,27 +484,23 @@ app.put('/api/groups/:groupId/read', async (req, res) => {
 
 app.get('/api/groups/:groupId/members', async (req, res) => {
     try {
-        const { groupId } = req.params;
-        const request = new sql.Request();
-        request.input('group_id', sql.Int, groupId);
-        
-        const result = await request.query(`
-            SELECT u.id, u.ten as name, gm.role, p.avatar, p.avatar_mimetype
-            FROM GroupMembers gm
-            JOIN Users u ON gm.user_id = u.id
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE gm.group_id = @group_id
-        `);
-        
-        const membersList = result.recordset.map(m => {
-            const avatarBase64 = m.avatar ? `data:${m.avatar_mimetype};base64,${m.avatar.toString('base64')}` : null;
-            return {
-                id: m.id, 
-                name: m.name, 
-                role: m.role, 
-                avatar: avatarBase64 || m.name.charAt(0).toUpperCase()
-            };
+        const groupId = Number(req.params.groupId);
+        const rows = await prisma.groupMember.findMany({
+            where: { group_id: groupId },
+            include: {
+                user: { include: { profile: true } }
+            }
         });
+
+        const membersList = rows.map((m) => ({
+            id: m.user.id,
+            name: m.user.ten,
+            role: m.role,
+            avatar:
+                toAvatarDataUrl(m.user.profile?.avatar, m.user.profile?.avatar_mimetype) ||
+                m.user.ten.charAt(0).toUpperCase()
+        }));
+
         res.status(200).json(membersList);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -542,22 +532,24 @@ app.post('/api/scan-bill', upload.single('billImage'), async (req, res) => {
 app.post('/api/register', async (req, res) => {
     try {
         const { hodem, tenlot, ten, username, email, dienthoai, password } = req.body;
+        if (dienthoai && !/^\d{10}$/.test(dienthoai)) {
+            return res.status(400).json({ error: 'Số điện thoại phải gồm 10 chữ số.' });
+        }
+
         const salt = await bcrypt.genSalt(10);
         const password_hash = await bcrypt.hash(password, salt);
-        const request = new sql.Request();
 
-        request.input('hodem', sql.NVarChar(20), hodem);
-        request.input('tenlot', sql.NVarChar(20), tenlot);
-        request.input('ten', sql.NVarChar(10), ten);
-        request.input('username', sql.VarChar(50), username);
-        request.input('email', sql.VarChar(50), email.trim().toLowerCase());
-        request.input('dienthoai', sql.Char(10), dienthoai);
-        request.input('password_hash', sql.VarChar(sql.MAX), password_hash);
-
-        await request.query(`
-            INSERT INTO Users (hodem, tenlot, ten, username, email, dienthoai, password_hash)
-            VALUES (@hodem, @tenlot, @ten, @username, @email, @dienthoai, @password_hash)
-        `);
+        await prisma.user.create({
+            data: {
+                hodem,
+                tenlot: tenlot || null,
+                ten,
+                username,
+                email: email.trim().toLowerCase(),
+                dienthoai: dienthoai || null,
+                password_hash
+            }
+        });
         res.status(201).json({ message: "Đăng ký thành công!" });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -567,11 +559,13 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/check-exists', async (req, res) => {
     const { username, dienthoai } = req.body;
     try {
-        const checkDuplicate = await new sql.Request()
-            .input('username', sql.VarChar, username)
-            .input('dienthoai', sql.Char, dienthoai)
-            .query(`SELECT id FROM Users WHERE username = @username OR dienthoai = @dienthoai`);
-        if (checkDuplicate.recordset.length > 0) return res.status(400).json({ error: "Trùng user!" });
+        const existing = await prisma.user.findFirst({
+            where: {
+                OR: [{ username }, { dienthoai }]
+            },
+            select: { id: true }
+        });
+        if (existing) return res.status(400).json({ error: "Trùng user!" });
         res.status(200).json({ message: "OK" });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -581,18 +575,15 @@ app.post('/api/check-exists', async (req, res) => {
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        const request = new sql.Request();
-        request.input('username', sql.VarChar(50), username);
-        const result = await request.query(`
-            SELECT u.*, p.avatar, p.avatar_mimetype 
-            FROM Users u
-            LEFT JOIN UserProfiles p ON u.id = p.user_id
-            WHERE u.username = @username
-        `);
+        const user = await prisma.user.findUnique({
+            where: { username },
+            include: { profile: true }
+        });
 
-        if (result.recordset.length === 0) return res.status(401).json({ error: "Không tồn tại!" });
-        const user = result.recordset[0];
-        if (!(await bcrypt.compare(password, user.password_hash))) return res.status(401).json({ error: "Sai pass!" });
+        if (!user) return res.status(401).json({ error: "Không tồn tại!" });
+        if (!(await bcrypt.compare(password, user.password_hash))) {
+            return res.status(401).json({ error: "Sai pass!" });
+        }
 
         const token = jwt.sign(
             { id: user.id, role_id: user.role_id },
@@ -600,18 +591,16 @@ app.post('/api/login', async (req, res) => {
             { expiresIn: '1h' }
         );
 
-        const avatarBase64 = user.avatar
-            ? `data:${user.avatar_mimetype};base64,${user.avatar.toString('base64')}`
-            : undefined;
+        const avatarBase64 = toAvatarDataUrl(user.profile?.avatar, user.profile?.avatar_mimetype);
 
         res.status(200).json({
             message: "Đăng nhập thành công!",
             token,
-            user: { 
-                id: user.id, 
-                ten: user.ten, 
+            user: {
+                id: user.id,
+                ten: user.ten,
                 username: user.username,
-                ...(avatarBase64 ? { avatar: avatarBase64 } : {}) // Kẹp thêm avatar vào để trả về Frontend
+                ...(avatarBase64 ? { avatar: avatarBase64 } : {})
             }
         });
     } catch (error) {
@@ -621,40 +610,32 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/users/profile', authenticateToken, async (req, res) => {
     try {
-        await ensureUserProfilesTable();
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, req.user.id);
-        const result = await request.query(`
-            SELECT
-                u.username,
-                u.hodem,
-                u.tenlot,
-                u.ten,
-                u.dienthoai AS soDienThoai,
-                COALESCE(p.dia_chi, N'') AS diaChi,
-                COALESCE(p.is_dia_chi_public, 0) AS isDiaChiPublic,
-                COALESCE(p.so_tai_khoan, N'') AS soTaiKhoan,
-                COALESCE(p.is_so_tai_khoan_public, 0) AS isSoTaiKhoanPublic,
-                COALESCE(p.ngan_hang, N'') AS nganHang,
-                COALESCE(p.is_ngan_hang_public, 0) AS isNganHangPublic,
-                p.avatar,
-                p.avatar_mimetype
-            FROM dbo.Users u
-            LEFT JOIN dbo.UserProfiles p ON p.user_id = u.id
-            WHERE u.id = @user_id
-        `);
+        const user = await prisma.user.findUnique({
+            where: { id: Number(req.user.id) },
+            include: { profile: true }
+        });
 
-        if (result.recordset.length === 0) {
+        if (!user) {
             return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
         }
 
-        const profile = result.recordset[0];
-        const avatar = profile.avatar
-            ? `data:${profile.avatar_mimetype};base64,${profile.avatar.toString('base64')}`
-            : '';
-        delete profile.avatar;
-        delete profile.avatar_mimetype;
-        return res.status(200).json({ ...profile, avatar });
+        const p = user.profile;
+        const avatar = toAvatarDataUrl(p?.avatar, p?.avatar_mimetype) || '';
+
+        return res.status(200).json({
+            username: user.username,
+            hodem: user.hodem,
+            tenlot: user.tenlot,
+            ten: user.ten,
+            soDienThoai: user.dienthoai,
+            diaChi: p?.dia_chi || '',
+            isDiaChiPublic: Boolean(p?.is_dia_chi_public),
+            soTaiKhoan: p?.so_tai_khoan || '',
+            isSoTaiKhoanPublic: Boolean(p?.is_so_tai_khoan_public),
+            nganHang: p?.ngan_hang || '',
+            isNganHangPublic: Boolean(p?.is_ngan_hang_public),
+            avatar
+        });
     } catch (error) {
         return res.status(500).json({ error: error.message });
     }
@@ -673,8 +654,6 @@ app.put(
     },
     async (req, res) => {
         try {
-            await ensureUserProfilesTable();
-
             const {
                 hodem: submittedHodem,
                 tenlot: submittedTenlot,
@@ -734,90 +713,73 @@ app.put(
             }
 
             const userId = Number(req.user.id);
-            const userExists = await new sql.Request()
-                .input('user_id', sql.Int, userId)
-                .query('SELECT id FROM dbo.Users WHERE id = @user_id');
-            if (userExists.recordset.length === 0) {
+            const userExists = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { id: true }
+            });
+            if (!userExists) {
                 return res.status(404).json({ error: 'Không tìm thấy tài khoản.' });
             }
 
-            // Kiểm tra trùng số điện thoại
-            const duplicatePhone = await new sql.Request()
-                .input('user_id', sql.Int, userId)
-                .input('phone', sql.Char(10), soDienThoai)
-                .query('SELECT id FROM dbo.Users WHERE dienthoai = @phone AND id <> @user_id');
-            if (duplicatePhone.recordset.length > 0) {
+            const duplicatePhone = await prisma.user.findFirst({
+                where: {
+                    dienthoai: soDienThoai,
+                    id: { not: userId }
+                },
+                select: { id: true }
+            });
+            if (duplicatePhone) {
                 return res.status(409).json({ error: 'Số điện thoại này đã được tài khoản khác sử dụng.' });
             }
 
-            const request = new sql.Request();
-            request.input('user_id', sql.Int, userId);
-            request.input('hodem', sql.NVarChar(20), hodem);
-            request.input('tenlot', sql.NVarChar(20), tenlot);
-            request.input('ten', sql.NVarChar(10), ten);
-            request.input('phone', sql.Char(10), soDienThoai);
-            request.input('dia_chi', sql.NVarChar(255), diaChi.trim());
-            request.input('is_dia_chi_public', sql.Bit, isDiaChiPublic === 'true');
-            request.input('so_tai_khoan', sql.NVarChar(50), soTaiKhoan.trim());
-            request.input('is_so_tai_khoan_public', sql.Bit, isSoTaiKhoanPublic === 'true');
-            request.input('ngan_hang', sql.NVarChar(100), nganHang.trim());
-            request.input('is_ngan_hang_public', sql.Bit, isNganHangPublic === 'true');
-            request.input('avatar', sql.VarBinary(sql.MAX), req.file ? req.file.buffer : null);
-            request.input('avatar_mimetype', sql.VarChar(100), req.file ? req.file.mimetype : null);
+            const avatarBytes = req.file ? new Uint8Array(req.file.buffer) : undefined;
+            const avatarMime = req.file ? req.file.mimetype : undefined;
+            const diaChiBool = isDiaChiPublic === 'true' || isDiaChiPublic === true;
+            const soTaiKhoanBool = isSoTaiKhoanPublic === 'true' || isSoTaiKhoanPublic === true;
+            const nganHangBool = isNganHangPublic === 'true' || isNganHangPublic === true;
 
-            const updateResult = await request.query(`
-                SET XACT_ABORT ON;
-                BEGIN TRANSACTION;
-                BEGIN TRY
-                    UPDATE dbo.Users
-                    SET hodem = @hodem, tenlot = @tenlot, ten = @ten, dienthoai = @phone
-                    WHERE id = @user_id;
-
-                    IF EXISTS (SELECT 1 FROM dbo.UserProfiles WHERE user_id = @user_id)
-                        UPDATE dbo.UserProfiles
-                        SET dia_chi = @dia_chi,
-                            is_dia_chi_public = @is_dia_chi_public,
-                            so_tai_khoan = @so_tai_khoan,
-                            is_so_tai_khoan_public = @is_so_tai_khoan_public,
-                            ngan_hang = @ngan_hang,
-                            is_ngan_hang_public = @is_ngan_hang_public,
-                            avatar = COALESCE(@avatar, avatar),
-                            avatar_mimetype = COALESCE(@avatar_mimetype, avatar_mimetype),
-                            updated_at = SYSUTCDATETIME()
-                        WHERE user_id = @user_id;
-                    ELSE
-                        INSERT INTO dbo.UserProfiles (
-                            user_id, dia_chi, is_dia_chi_public, so_tai_khoan,
-                            is_so_tai_khoan_public, ngan_hang, is_ngan_hang_public,
-                            avatar, avatar_mimetype
-                        )
-                        VALUES (
-                            @user_id, @dia_chi, @is_dia_chi_public, @so_tai_khoan,
-                            @is_so_tai_khoan_public, @ngan_hang, @is_ngan_hang_public,
-                            @avatar, @avatar_mimetype
-                        );
-
-                COMMIT TRANSACTION;
-                END TRY
-                BEGIN CATCH
-                    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-                    THROW;
-                END CATCH;
-
-                SELECT @ten AS ten, @phone AS soDienThoai;
-            `);
+            await prisma.$transaction([
+                prisma.user.update({
+                    where: { id: userId },
+                    data: { hodem, tenlot, ten, dienthoai: soDienThoai }
+                }),
+                prisma.userProfile.upsert({
+                    where: { user_id: userId },
+                    update: {
+                        dia_chi: diaChi.trim(),
+                        is_dia_chi_public: diaChiBool,
+                        so_tai_khoan: soTaiKhoan.trim(),
+                        is_so_tai_khoan_public: soTaiKhoanBool,
+                        ngan_hang: nganHang.trim(),
+                        is_ngan_hang_public: nganHangBool,
+                        ...(avatarBytes ? { avatar: avatarBytes, avatar_mimetype: avatarMime } : {})
+                    },
+                    create: {
+                        user_id: userId,
+                        dia_chi: diaChi.trim(),
+                        is_dia_chi_public: diaChiBool,
+                        so_tai_khoan: soTaiKhoan.trim(),
+                        is_so_tai_khoan_public: soTaiKhoanBool,
+                        ngan_hang: nganHang.trim(),
+                        is_ngan_hang_public: nganHangBool,
+                        avatar: avatarBytes || null,
+                        avatar_mimetype: avatarMime || null
+                    }
+                })
+            ]);
 
             const avatar = req.file
                 ? `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`
                 : undefined;
+
             return res.status(200).json({
                 message: 'Đã lưu thông tin cá nhân.',
-                ten: updateResult.recordset[0].ten,
-                soDienThoai: updateResult.recordset[0].soDienThoai,
+                ten,
+                soDienThoai,
                 ...(avatar ? { avatar } : {})
             });
         } catch (error) {
-            const status = error.number === 2627 || error.number === 2601 ? 409 : 500;
+            const status = error.code === 'P2002' ? 409 : 500;
             const message = status === 409
                 ? 'Số điện thoại này đã được tài khoản khác sử dụng.'
                 : error.message;
@@ -826,4 +788,8 @@ app.put(
     }
 );
 
-server.listen(PORT, () => console.log(`Server chạy tại http://localhost:${PORT}`));
+if (!process.env.VERCEL) {
+    server.listen(PORT, () => console.log(`Server chạy tại http://localhost:${PORT}`));
+}
+
+module.exports = app;

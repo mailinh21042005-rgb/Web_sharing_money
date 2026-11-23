@@ -1,12 +1,21 @@
-const sql = require('mssql'); 
+require('dotenv').config();
+const { Pool } = require('pg');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const { PrismaClient } = require('@prisma/client');
 
-const connectDB = async () => {
-    try {
-        await sql.connect(process.env.AZURE_SQL_CONNECTIONSTRING);
-        console.log('Kết nối Azure SQL Web_sharing_money thành công!');
-    } catch (err) {
-        console.error('Lỗi kết nối Azure SQL:', err);
-    }
-};
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  max: 5,
+  idleTimeoutMillis: 20000,
+  connectionTimeoutMillis: 15000,
+});
 
-module.exports = { sql, connectDB };
+pool.on('error', (err) => {
+  console.error('Lỗi kết nối nhàn rỗi từ Neon Pool:', err.message);
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+
+module.exports = prisma;
